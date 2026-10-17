@@ -352,15 +352,22 @@
 
   async function doLogout() {
     if (!CLOUD) return;
-    if (!confirm('确定要退出登录吗？\n（您的本地数据会自动保留，下次登录仍可同步）')) return;
+    // 增加醒目的数据清除提示
+    if (!confirm('确定要退出登录吗？\n\n⚠️ 退出将清空当前设备上的所有本地模板数据！\n（如果您已同步到云端，下次登录即可恢复）')) return;
     
     clearTimeout(pushTimer);
     
-    // 1. 不管网络成不成功，强制在前端立刻清空登录状态，让界面秒响应
-    setUser(null);
-    toast('已安全退出登录');
+    // 1. 清空内存数据
+    templates = [];
+    groups = [];
+    currentId = null;
+    editingId = null;
+    descEditingId = null;
 
-    // 2. 强制清理本地缓存中可能残留的 Supabase Token（防止刷新后依然处于登录态）
+    // 2. 抹除 localStorage 中的模板数据
+    try { localStorage.removeItem(KEY); } catch (e) {}
+
+    // 3. 强制清理 Supabase 登录凭证（防止残留）
     try {
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
@@ -369,8 +376,14 @@
       });
     } catch (e) {}
 
-    // 3. 在后台静默通知服务器注销（即使失败也不影响本地已退出的状态）
-    sb.auth.signOut().catch(e => console.warn('远端注销异常（网络波动）:', e));
+    // 4. 立即更新 UI，让界面变空
+    setUser(null);
+    showEmpty();
+    renderTree();
+    toast('已退出登录并清空本地数据');
+
+    // 5. 在后台静默通知服务器注销（即使断网也不会卡住）
+    sb.auth.signOut().catch(e => console.warn('远端注销异常:', e));
   }
 
   async function computeShortId(str) {
