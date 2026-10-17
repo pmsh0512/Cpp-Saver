@@ -1,0 +1,2297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C++ 模板库 · 云端版</title>
+
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+
+<style>
+:root{
+  --ui-font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --ui-size:14px;
+  --md-size:13.5px;
+  --code-size:13px;
+  --code-font:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  font-family:var(--ui-font);font-size:var(--ui-size);
+  background:#0f1115;color:#d7dae0;overflow:hidden;
+}
+[hidden]{display:none!important}
+button{font-family:inherit}
+.app{display:flex;height:100vh}
+
+/* ---------- 侧栏 ---------- */
+.sidebar{position:relative;width:320px;flex:0 0 320px;display:flex;flex-direction:column;background:#13161d;border-right:1px solid #262b36;min-height:0}
+.side-head{padding:14px 16px 10px}
+.side-head h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.3px}
+
+/* 账号栏 */
+.account-bar{display:flex;align-items:center;gap:6px;padding:0 14px 10px}
+.acc-status{flex:1;min-width:0;font-size:12px;color:#7d8590;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc-status.online{color:#3fb950}
+.acc-status.online::before{content:"● ";font-size:9px;vertical-align:middle}
+.account-bar .btn{padding:5px 10px;font-size:11.5px}
+
+.side-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 14px 10px}
+.side-actions .btn{padding:7px 2px;font-size:11.5px}
+.btn{padding:7px 12px;border-radius:8px;border:1px solid #2a303c;background:#1a1f29;color:#c9d1d9;font-size:12.5px;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn:hover{background:#232a36;border-color:#39414f}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.btn.primary:hover{background:#2b7bf5}
+.btn.danger{color:#ff7b72;border-color:#4a2a2c}
+.btn.danger:hover{background:#3a1f21}
+
+.search{margin:0 14px 10px;padding:8px 10px;border-radius:8px;border:1px solid #2a303c;background:#0f1218;color:#d7dae0;outline:none;font-size:13px}
+.search:focus{border-color:#3b6ea5}
+
+/* 树形列表 */
+.list{list-style:none;margin:0;padding:0 6px 12px;overflow-y:auto;flex:1;min-height:0}
+.tree-node{display:flex;align-items:center;gap:4px;padding:6px 6px 6px 0;border-radius:6px;cursor:pointer;user-select:none;position:relative}
+.tree-node:hover{background:#1a1f29}
+.tree-node.active{background:#1c2635}
+.group-node{font-weight:500}
+.template-node .node-name{font-weight:400}
+.node-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.node-count{font-size:11px;color:#6e7681;flex:0 0 auto;margin-right:2px}
+.node-ops{display:flex;gap:1px;opacity:0;transition:opacity .15s;flex:0 0 auto}
+.tree-node:hover .node-ops{opacity:1}
+.node-op{width:22px;height:22px;border:none;background:transparent;color:#7d8590;border-radius:4px;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
+.node-op:hover{background:#2a303c;color:#e6edf3}
+.node-op.danger:hover{background:#3a1f21;color:#ff7b72}
+.arrow{color:#6e7681;font-size:10px;width:12px;text-align:center;flex:0 0 auto}
+.folder-icon{font-size:13px;flex:0 0 auto;line-height:1}
+.file-icon{font-size:12px;flex:0 0 auto;line-height:1;opacity:.55}
+.list-empty{padding:24px 14px;color:#5a6270;font-size:13px;text-align:center;line-height:1.9;white-space:pre-line}
+.tree-hint{padding:6px 14px;font-size:11.5px;color:#5a6270;line-height:1.7}
+
+.side-foot{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-top:1px solid #262b36;font-size:12px;color:#5a6270}
+.settings-btn{border:1px solid transparent;background:transparent;color:#9aa4b2;font-size:12.5px;cursor:pointer;padding:4px 8px;border-radius:6px;font-family:inherit}
+.settings-btn:hover{background:#232a36;color:#e6edf3}
+
+.settings-panel{position:absolute;bottom:48px;left:10px;right:10px;background:#1a1f29;border:1px solid #2a303c;border-radius:12px;padding:14px 16px;box-shadow:0 12px 32px rgba(0,0,0,.55);z-index:50}
+.settings-title{font-size:11px;color:#7d8590;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px;font-weight:600}
+.settings-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.settings-row:last-child{margin-bottom:0}
+.settings-row label{font-size:12.5px;color:#9aa4b2;width:36px;flex:0 0 auto}
+.settings-row input[type=range]{flex:1;accent-color:#1f6feb;min-width:0}
+.settings-row select{flex:1;min-width:0;background:#0f1218;border:1px solid #2a303c;border-radius:6px;color:#d7dae0;padding:6px 8px;outline:none;font-size:12.5px;font-family:inherit}
+.settings-row select:focus{border-color:#1f6feb}
+.settings-val{font-size:12px;color:#6e7681;width:44px;text-align:right;flex:0 0 auto;font-variant-numeric:tabular-nums}
+
+/* 分组选择浮层 */
+.group-picker{position:fixed;background:#1a1f29;border:1px solid #2a303c;border-radius:8px;padding:4px 0;min-width:180px;max-width:260px;max-height:340px;overflow-y:auto;box-shadow:0 12px 32px rgba(0,0,0,.65);z-index:300}
+.picker-item{padding:6px 12px;font-size:12.5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c9d1d9}
+.picker-item:hover{background:#232a36}
+.picker-item.selected{color:#58a6ff;font-weight:500}
+.picker-empty{padding:10px 14px;font-size:12px;color:#5a6270}
+
+/* ---------- 主区 ---------- */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
+.empty{flex:1;display:flex;align-items:center;justify-content:center;color:#4d5563;font-size:14px;text-align:center;line-height:1.9;padding:24px}
+.viewer{flex:1;display:flex;flex-direction:column;min-height:0}
+.viewer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid #262b36;flex-wrap:wrap;flex:0 0 auto}
+.viewer-title-wrap{min-width:0;flex:1}
+.viewer-head h2{margin:0;font-size:16px;font-weight:600;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6edf3}
+.view-title-input{width:100%;display:block;margin:0;font-size:16px;font-weight:600;line-height:1.4;background:#0f1218;border:1px solid #1f6feb;border-radius:6px;color:#e6edf3;padding:2px 8px;outline:none;font-family:inherit}
+.viewer-meta{font-size:12px;color:#6e7681;margin-top:4px}
+.viewer-actions{display:flex;gap:8px;flex:0 0 auto;flex-wrap:wrap}
+
+.content-scroll{flex:1;overflow-y:auto;min-height:0;padding:18px 24px 70px}
+
+.md-body{font-size:var(--md-size);line-height:1.8;color:#c9d1d9;word-break:break-word}
+.md-body>*:first-child{margin-top:0}
+.md-body h1,.md-body h2,.md-body h3,.md-body h4{margin:20px 0 10px;color:#e6edf3;font-weight:600;line-height:1.4}
+.md-body h1{font-size:1.4em;border-bottom:1px solid #262b36;padding-bottom:8px}
+.md-body h2{font-size:1.22em}
+.md-body h3{font-size:1.1em}
+.md-body h4{font-size:1em}
+.md-body p{margin:10px 0}
+.md-body ul,.md-body ol{margin:10px 0;padding-left:24px}
+.md-body li{margin:4px 0}
+.md-body blockquote{margin:12px 0;padding:5px 14px;border-left:3px solid #2f4a6b;color:#9aa4b2;background:#12161d;border-radius:0 6px 6px 0}
+.md-body blockquote p{margin:4px 0}
+.md-body a{color:#58a6ff;text-decoration:none}
+.md-body a:hover{text-decoration:underline}
+.md-body hr{border:none;border-top:1px solid #262b36;margin:18px 0}
+.md-body del{color:#6e7681}
+.md-body code.md-code{background:#1b2029;color:#ffa657;padding:2px 6px;border-radius:5px;font-size:.9em;font-family:var(--code-font)}
+.md-body.empty{color:#4d5563;font-style:italic;margin-bottom:12px}
+
+.md-body .mini-code-inline{display:inline-block;background:#0b0e13;border:1px solid #2a303c;border-radius:5px;padding:1px 7px;margin:0 2px;font-family:var(--code-font);font-size:.88em;line-height:1.6;vertical-align:middle;white-space:pre;color:#c9d1d9;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.md-body .mini-code-inline::-webkit-scrollbar{display:none}
+.md-body .mini-code-inline code{font-family:inherit;font-size:inherit;line-height:inherit;white-space:inherit}
+
+.text-box{margin:14px 0}
+.text-box .code-head{background:#161a22}
+.text-box pre.code-body{padding:12px 16px;font-size:var(--code-size);line-height:1.65;color:#c9d1d9;tab-size:4}
+
+.table-wrap{overflow-x:auto;margin:14px 0}
+.md-body table{border-collapse:collapse;width:100%;font-size:.95em;min-width:max-content}
+.md-body th,.md-body td{border:1px solid #2a303c;padding:7px 13px;line-height:1.6}
+.md-body th{background:#161a22;color:#e6edf3;font-weight:600;white-space:nowrap}
+.md-body td{color:#c9d1d9}
+.md-body tbody tr:nth-child(even) td{background:#12161d}
+.md-body tbody tr:hover td{background:#161a22}
+
+.code-block{margin:16px 0;border:1px solid #262b36;border-radius:10px;overflow:hidden;background:#0b0e13}
+.md-body>.code-block:first-child{margin-top:14px}
+.code-head{display:flex;justify-content:space-between;align-items:center;padding:7px 12px 7px 15px;background:#161a22;border-bottom:1px solid #262b36}
+.code-lang{font-size:11px;color:#7d8590;text-transform:uppercase;letter-spacing:1px;font-family:var(--code-font)}
+.copy-code{border:1px solid #2a303c;background:#1a1f29;color:#9aa4b2;border-radius:6px;padding:3px 12px;font-size:11.5px;cursor:pointer;transition:.15s;font-family:inherit}
+.copy-code:hover{background:#232a36;color:#fff;border-color:#39414f}
+pre.code-body{margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--code-font);font-size:var(--code-size);line-height:1.7;tab-size:4}
+pre.code-body code{font-family:inherit;white-space:pre}
+
+.editor{flex:1;display:flex;flex-direction:column;min-height:0}
+.editor-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-bottom:1px solid #262b36;flex:0 0 auto}
+.editor-label{font-size:13px;color:#7d8590;display:flex;align-items:center;gap:8px;min-width:0}
+.editor-label b{color:#e6edf3;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.editor-actions{display:flex;gap:8px;flex:0 0 auto}
+
+.editor-panes{flex:1;display:grid;grid-template-columns:1fr 1fr;min-height:0;overflow:hidden}
+.edit-textarea{grid-column:1;grid-row:1;width:100%;height:100%;resize:none;border:none;outline:none;background:#0f1115;color:#c9d1d9;padding:16px 20px;font-family:var(--code-font);font-size:var(--code-size);line-height:1.7;tab-size:4;min-height:0}
+.editor-preview{grid-column:2;grid-row:1;border-left:1px solid #262b36;display:flex;flex-direction:column;min-height:0;background:#0b0e13}
+.editor-preview-head{display:flex;align-items:center;justify-content:space-between;padding:6px 14px;font-size:11px;color:#7d8590;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid #262b36;background:#161a22;font-family:var(--code-font)}
+.preview-dot{width:6px;height:6px;border-radius:50%;background:#3fb950;display:inline-block;margin-right:6px;vertical-align:middle;box-shadow:0 0 6px rgba(63,185,80,.7)}
+.editor-preview-scroll{flex:1;overflow:auto;min-height:0}
+.editor-preview-scroll pre{margin:0}
+.editor-preview-scroll .md-body{padding:16px 18px 60px}
+
+.code-editor-wrap{flex:1;display:flex;min-height:0;background:#0b0e13;overflow:hidden}
+.line-numbers{flex:0 0 auto;padding:16px 10px 16px 16px;text-align:right;font-family:var(--code-font);font-size:var(--code-size);line-height:1.7;color:#4d5563;background:#0d1014;border-right:1px solid #262b36;user-select:none;white-space:pre;overflow:hidden;tab-size:4;min-width:3.6em;font-variant-numeric:tabular-nums}
+.code-editor{position:relative;flex:1;min-width:0;overflow:hidden}
+.hl-layer,.input-layer{position:absolute;inset:0;margin:0;padding:16px 20px;font-family:var(--code-font);font-size:var(--code-size);line-height:1.7;letter-spacing:0;tab-size:4;white-space:pre;word-wrap:normal;overflow-wrap:normal;border:none;outline:none;box-sizing:border-box}
+.hl-layer{pointer-events:none;z-index:1;color:#c9d1d9;overflow:auto;background:transparent}
+.hl-layer code{font-family:inherit;font-size:inherit;line-height:inherit;letter-spacing:inherit;tab-size:inherit;white-space:pre}
+.hl-layer::-webkit-scrollbar{display:none}
+.hl-layer{scrollbar-width:none}
+.input-layer{z-index:2;color:transparent;caret-color:#e6edf3;background:transparent;resize:none;overflow:auto}
+.input-layer::selection{background:rgba(88,166,255,.30);color:transparent}
+
+/* ---------- 语法高亮 ---------- */
+.c-com{color:#6a9955}
+.c-pre{color:#c586c0}
+.c-str{color:#ce9178}
+.c-num{color:#b5cea8}
+.c-kw{color:#569cd6}
+.c-ty{color:#4ec9b0}
+.c-fn{color:#dcdcaa}
+
+/* ---------- 模态框 ---------- */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-box{background:#161a22;border:1px solid #2a303c;border-radius:12px;width:100%;max-width:580px;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #262b36}
+.modal-head h3{margin:0;font-size:15px;font-weight:600}
+.modal-close{border:none;background:transparent;color:#7d8590;font-size:22px;line-height:1;cursor:pointer;padding:0 8px;border-radius:6px}
+.modal-close:hover{background:#2a303c;color:#e6edf3}
+.modal-toolbar{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-bottom:1px solid #262b36;font-size:13px;color:#9aa4b2}
+.chk-all{cursor:pointer;user-select:none;display:flex;align-items:center;gap:7px}
+.sel-info b{color:#58a6ff}
+.export-list{list-style:none;margin:0;padding:6px 8px;overflow-y:auto;flex:1;min-height:0}
+.export-list li{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer}
+.export-list li:hover{background:#1a1f29}
+.export-list input[type=checkbox]{width:15px;height:15px;accent-color:#1f6feb;cursor:pointer;flex:0 0 auto}
+.export-list .ex-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.export-list .ex-meta{font-size:11.5px;color:#6e7681;flex:0 0 auto}
+.export-empty{padding:22px 14px;color:#5a6270;font-size:13px;text-align:center}
+.modal-tip{padding:9px 18px;font-size:12px;color:#6e7681;border-top:1px solid #262b36;line-height:1.6}
+.modal-tip code{background:#1b2029;color:#ffa657;padding:1px 5px;border-radius:4px;font-size:11px;font-family:var(--code-font)}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #262b36}
+
+/* 分组/表单 */
+.group-form{padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.group-form label{font-size:12.5px;color:#9aa4b2}
+.group-form input{width:100%;background:#0f1218;border:1px solid #2a303c;border-radius:8px;color:#e6edf3;padding:8px 11px;outline:none;font-family:inherit;font-size:13.5px}
+.group-form input:focus{border-color:#1f6feb}
+.group-form input[readonly]{color:#8b949e;background:#0b0e13}
+.group-hint{font-size:11.5px;color:#5a6270;line-height:1.6;margin-top:2px}
+.group-hint code{background:#1b2029;color:#ffa657;padding:1px 5px;border-radius:4px;font-size:11px;font-family:var(--code-font)}
+
+/* ---------- Toast ---------- */
+.toast{position:fixed;left:50%;bottom:32px;transform:translate(-50%,20px);background:#1f6feb;color:#fff;padding:9px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:400;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- 响应式 ---------- */
+@media (max-width:880px){
+  .app{flex-direction:column}
+  .sidebar{width:100%;flex:0 0 auto;max-height:40vh;border-right:none;border-bottom:1px solid #262b36}
+  .node-ops{opacity:1}
+  .content-scroll{padding:16px 16px 60px}
+}
+@media (max-width:720px){
+  .editor-panes{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+  .editor-preview{grid-column:1;grid-row:2;border-left:none;border-top:1px solid #262b36}
+  .edit-textarea{grid-row:1}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="side-head"><h1>📚 C++ 模板库</h1></div>
+
+    <!-- 账号栏 -->
+    <div class="account-bar">
+      <span class="acc-status" id="acc-status">未登录</span>
+      <button id="btn-login" class="btn" type="button">登录</button>
+      <button id="btn-logout" class="btn" type="button" hidden>退出</button>
+    </div>
+
+    <div class="side-actions">
+      <button id="btn-new" class="btn primary" type="button">＋ 新建</button>
+      <button id="btn-import" class="btn" type="button">📥 导入</button>
+      <button id="btn-export" class="btn" type="button">📤 导出</button>
+      <button id="btn-group" class="btn" type="button">📁 分组</button>
+      <button id="btn-open-share" class="btn" type="button">🔗 打开分享</button>
+      <button id="btn-sync" class="btn" type="button">☁ 同步</button>
+      <input id="file-input" type="file" multiple hidden
+             accept=".cpp,.cc,.cxx,.c,.h,.hpp,.hxx,.ipp,.ino,.cp,text/plain">
+    </div>
+
+    <input id="search" class="search" placeholder="搜索名称、简介或代码…" autocomplete="off">
+    <div id="list" class="list"></div>
+
+    <div class="side-foot">
+      <button id="btn-settings" class="settings-btn" type="button" title="设置">⚙ 设置</button>
+      <span id="count"></span>
+    </div>
+
+    <div id="settings-panel" class="settings-panel" hidden>
+      <div class="settings-title">显示设置</div>
+      <div class="settings-row">
+        <label for="set-size">字号</label>
+        <input type="range" id="set-size" min="12" max="20" step="0.5" value="14">
+        <span id="set-size-val" class="settings-val">14px</span>
+      </div>
+      <div class="settings-row">
+        <label for="set-font">字体</label>
+        <select id="set-font">
+          <option value="system">系统默认</option>
+          <option value="yahei">微软雅黑</option>
+          <option value="serif">衬线</option>
+          <option value="kai">楷体</option>
+          <option value="mono">等宽</option>
+        </select>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div id="empty" class="empty">
+      ← 选择左侧模板，或点击「＋ 新建」/「📥 导入」<br>
+      <span style="color:#3a414d">「☁ 分享」生成哈希编号 · 「🔗 打开分享」凭编号获取他人代码</span>
+    </div>
+
+    <div id="viewer" class="viewer" hidden>
+      <div class="viewer-head">
+        <div class="viewer-title-wrap">
+          <h2 id="view-title">—</h2>
+          <input id="view-title-input" class="view-title-input" hidden
+                 autocomplete="off" spellcheck="false">
+          <div class="viewer-meta" id="view-meta"></div>
+        </div>
+        <div class="viewer-actions">
+          <button id="btn-share" class="btn" type="button">☁ 分享</button>
+          <button id="btn-desc" class="btn" type="button">✎ 编辑简介</button>
+          <button id="btn-edit" class="btn" type="button">✎ 编辑代码</button>
+          <button id="btn-copy-md" class="btn" type="button">📋 复制 Markdown</button>
+          <button id="btn-copy" class="btn" type="button">📋 复制代码</button>
+          <button id="btn-del" class="btn danger" type="button">🗑 删除</button>
+        </div>
+      </div>
+
+      <div class="content-scroll" id="content-scroll">
+        <div id="desc-view" class="md-body"></div>
+        <div id="code-embed"></div>
+      </div>
+    </div>
+
+    <div id="desc-editor" class="editor" hidden>
+      <div class="editor-head">
+        <div class="editor-label">编辑简介 <b id="desc-edit-name">—</b></div>
+        <div class="editor-actions">
+          <button id="btn-desc-save" class="btn primary" type="button">💾 保存简介</button>
+          <button id="btn-desc-cancel" class="btn" type="button">取消</button>
+        </div>
+      </div>
+      <div class="editor-panes">
+        <textarea id="desc-md-input" class="edit-textarea" spellcheck="false"
+                  placeholder="# 标题&#10;&#10;支持**粗体**、- 列表、> 引用、表格、```代码块、``cpp 代码块``…&#10;&#10;右侧实时预览"></textarea>
+        <div class="editor-preview">
+          <div class="editor-preview-head">
+            <span><span class="preview-dot"></span>实时预览</span>
+            <span id="desc-preview-hint">—</span>
+          </div>
+          <div class="editor-preview-scroll">
+            <div id="desc-preview" class="md-body"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="editor" class="editor" hidden>
+      <div class="editor-head">
+        <div class="editor-label">编辑代码 <b id="edit-name">—</b></div>
+        <div class="editor-actions">
+          <button id="btn-save" class="btn primary" type="button">💾 保存代码</button>
+          <button id="btn-cancel" class="btn" type="button">取消</button>
+        </div>
+      </div>
+      <div class="code-editor-wrap">
+        <div class="line-numbers" id="line-numbers">1</div>
+        <div class="code-editor">
+          <pre class="hl-layer" id="hl-layer" aria-hidden="true"><code id="hl-code"></code></pre>
+          <textarea id="edit-code" class="input-layer" spellcheck="false" wrap="off"
+                    autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ==================== 导出模态框 ==================== -->
+<div id="export-modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>批量导出为 .cpp</h3>
+      <button class="modal-close" type="button" id="modal-close" title="关闭">×</button>
+    </div>
+    <div class="modal-toolbar">
+      <label class="chk-all"><input type="checkbox" id="chk-all"> 全选</label>
+      <span class="sel-info">已选 <b id="sel-count">0</b> / <span id="total-count">0</span></span>
+    </div>
+    <ul id="export-list" class="export-list"></ul>
+    <div class="modal-tip">
+      每个模板导出为一个 <code>.cpp</code> 文件，简介会以 <code>/* ... */</code> 注释放在代码开头。
+    </div>
+    <div class="modal-foot">
+      <button class="btn" type="button" id="export-cancel">取消</button>
+      <button class="btn primary" type="button" id="export-confirm">导出所选</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 分组编辑模态框 ==================== -->
+<div id="group-modal" class="modal" hidden>
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-head">
+      <h3 id="group-modal-title">编辑分组</h3>
+      <button class="modal-close" type="button" id="group-modal-close" title="关闭">×</button>
+    </div>
+    <div class="group-form">
+      <label for="group-name-input">分组名称</label>
+      <input id="group-name-input" placeholder="如：图论" autocomplete="off" spellcheck="false">
+      <label for="group-kw-input">自动分组关键词（可选）</label>
+      <input id="group-kw-input" placeholder="如：dijkstra, 最短路, 图论（逗号分隔）" autocomplete="off" spellcheck="false">
+      <div class="group-hint">名称或简介包含任一关键词的模板会自动归入本组；手动移动的模板优先于自动匹配。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" type="button" id="group-modal-cancel">取消</button>
+      <button class="btn primary" type="button" id="group-modal-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 登录 / 注册 ==================== -->
+<div id="auth-modal" class="modal" hidden>
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-head">
+      <h3>登录 / 注册</h3>
+      <button class="modal-close" type="button" id="auth-close" title="关闭">×</button>
+    </div>
+    <div class="group-form">
+      <label for="auth-user">账号</label>
+      <input id="auth-user" placeholder="2-32 位字母、数字、_ 或 -"
+             autocomplete="username" spellcheck="false">
+      <label for="auth-pass">密码</label>
+      <input id="auth-pass" type="password" placeholder="至少 6 位"
+             autocomplete="current-password">
+      <div class="group-hint" id="auth-hint">首次使用请先点「注册」，注册成功会自动登录。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" type="button" id="auth-register">注册</button>
+      <button class="btn primary" type="button" id="auth-login-btn">登录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 分享结果 ==================== -->
+<div id="share-modal" class="modal" hidden>
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-head">
+      <h3>☁ 已分享</h3>
+      <button class="modal-close" type="button" id="share-close" title="关闭">×</button>
+    </div>
+    <div class="group-form">
+      <label>分享编号</label>
+      <input id="share-id" readonly>
+      <label>分享链接</label>
+      <input id="share-url" readonly>
+      <div class="group-hint" id="share-tip"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" type="button" id="share-copy-id">复制编号</button>
+      <button class="btn primary" type="button" id="share-copy-url">复制链接</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 打开分享 ==================== -->
+<div id="open-modal" class="modal" hidden>
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-head">
+      <h3>🔗 打开分享</h3>
+      <button class="modal-close" type="button" id="open-close" title="关闭">×</button>
+    </div>
+    <div class="group-form">
+      <label for="open-id">分享编号</label>
+      <input id="open-id" placeholder="如 a1b2c3d4e5" autocomplete="off" spellcheck="false">
+      <div class="group-hint">粘贴别人分享的编号，或直接打开带 <code>#s=编号</code> 的链接，即可把该模板导入本地库。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" type="button" id="open-cancel">取消</button>
+      <button class="btn primary" type="button" id="open-confirm">获取</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 云端同步 ==================== -->
+<div id="sync-modal" class="modal" hidden>
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-head">
+      <h3>☁ 云端同步</h3>
+      <button class="modal-close" type="button" id="sync-close" title="关闭">×</button>
+    </div>
+    <div class="group-form">
+      <div class="group-hint" id="sync-info">—</div>
+      <div class="group-hint" style="color:#7d8590">
+        登录后，本地改动会自动上传到云端（约 1.5 秒防抖）。在新设备登录后点「从云端下载」即可恢复。
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" type="button" id="sync-pull">⬇ 从云端下载</button>
+      <button class="btn primary" type="button" id="sync-push">⬆ 上传本地</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+   *  常量与工具
+   * ========================================================= */
+  const $ = (s) => document.querySelector(s);
+  const KEY = 'cpp-templates-v13';
+  const SETTINGS_KEY = 'cpp-templates-settings-v1';
+  const OLD_KEYS = ['cpp-templates-v12','cpp-templates-v11','cpp-templates-v10','cpp-templates-v9','cpp-templates-v8','cpp-templates-v7','cpp-templates-v6','cpp-templates-v5','cpp-templates-v4','cpp-templates-v3','cpp-templates-v2','code-templates-v1'];
+  const MAX_HIGHLIGHT = 400 * 1024;
+  const INDENT_UNIT = '    ';
+
+  const FONTS = {
+    system: '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif',
+    yahei:  '"Microsoft YaHei","PingFang SC",sans-serif',
+    serif:  'Georgia,"Times New Roman","Songti SC","SimSun",serif',
+    kai:    '"Kaiti SC","STKaiti",KaiTi,"楷体",serif',
+    mono:   'ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace'
+  };
+
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+  function formatSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(2) + ' MB';
+  }
+  function sanitizeFilename(name) {
+    let s = String(name || 'template').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim();
+    s = s.replace(/\s+/g, ' ');
+    return s || 'template';
+  }
+  function bindTabIndent(ta) {
+    ta.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      e.preventDefault();
+      const s = ta.selectionStart, en = ta.selectionEnd;
+      ta.value = ta.value.slice(0, s) + INDENT_UNIT + ta.value.slice(en);
+      ta.selectionStart = ta.selectionEnd = s + INDENT_UNIT.length;
+      ta.dispatchEvent(new Event('input'));
+    });
+  }
+
+  /* =========================================================
+   *  C++ 语法高亮
+   * ========================================================= */
+  const CPP_KEYWORDS = new Set((
+    'alignas alignof and and_eq asm auto bitand bitor bool break case catch char char8_t char16_t char32_t ' +
+    'class compl concept const consteval constexpr constinit const_cast continue co_await co_return co_yield ' +
+    'decltype default delete do double dynamic_cast else enum explicit export extern false float for friend goto ' +
+    'if inline int long mutable namespace new noexcept not not_eq nullptr operator or or_eq private protected ' +
+    'public register reinterpret_cast requires return short signed sizeof static static_assert static_cast struct ' +
+    'switch template this thread_local throw true try typedef typeid typename union unsigned using virtual void ' +
+    'volatile wchar_t while xor xor_eq'
+  ).split(' '));
+
+  const CPP_TYPES = new Set((
+    'std string vector map set unordered_map unordered_set multiset multimap pair queue deque stack priority_queue ' +
+    'array bitset tuple complex size_t ptrdiff_t int8_t int16_t int32_t int64_t uint8_t uint16_t uint32_t uint64_t ' +
+    'll ull INF MOD eps INT_MAX INT_MIN LLONG_MAX LLONG_MIN'
+  ).split(' '));
+
+  const CPP_RE = new RegExp(
+    '(\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)' +
+    '|(^[ \\t]*#[ \\t]*[A-Za-z_]+)' +
+    '|("(?:\\\\.|[^"\\\\\\n])*"|\'(?:\\\\.|[^\'\\\\\\n])*\')' +
+    '|(\\b(?:0[xX][0-9a-fA-F]+|\\d+\\.?\\d*(?:[eE][+-]?\\d+)?)[uUlLfF]*\\b)' +
+    '|([A-Za-z_]\\w*)',
+    'gm'
+  );
+
+  function highlightCpp(code) {
+    if (!code) return '';
+    let out = '', last = 0, m;
+    CPP_RE.lastIndex = 0;
+    while ((m = CPP_RE.exec(code)) !== null) {
+      if (m.index > last) out += esc(code.slice(last, m.index));
+
+      if (m[1])      out += '<span class="c-com">' + esc(m[1]) + '</span>';
+      else if (m[2]) out += '<span class="c-pre">' + esc(m[2]) + '</span>';
+      else if (m[3]) out += '<span class="c-str">' + esc(m[3]) + '</span>';
+      else if (m[4]) out += '<span class="c-num">' + esc(m[4]) + '</span>';
+      else {
+        const w = m[5];
+        let j = CPP_RE.lastIndex;
+        while (j < code.length && (code[j] === ' ' || code[j] === '\t')) j++;
+        if (CPP_KEYWORDS.has(w))   out += '<span class="c-kw">' + esc(w) + '</span>';
+        else if (CPP_TYPES.has(w)) out += '<span class="c-ty">' + esc(w) + '</span>';
+        else if (code[j] === '(')  out += '<span class="c-fn">' + esc(w) + '</span>';
+        else                       out += esc(w);
+      }
+      last = CPP_RE.lastIndex;
+    }
+    out += esc(code.slice(last));
+    return out;
+  }
+
+  const CPP_LANGS = ['cpp','c++','c','cc','cxx','h','hpp','hxx','ipp','ino','cp'];
+
+  function renderCodeBlock(code, lang) {
+    const lc = (lang || '').toLowerCase();
+    const isCpp = CPP_LANGS.indexOf(lc) !== -1;
+    const body = (isCpp && code.length <= MAX_HIGHLIGHT) ? highlightCpp(code) : esc(code);
+    return '<div class="code-block">' +
+      '<div class="code-head">' +
+        '<span class="code-lang">' + esc(lang || 'text') + '</span>' +
+        '<button class="copy-code" type="button" data-code="' + encodeURIComponent(code) + '">复制</button>' +
+      '</div>' +
+      '<pre class="code-body"><code>' + body + '</code></pre>' +
+    '</div>';
+  }
+
+  function renderTextBox(content, lang) {
+    const label = String(lang == null ? '' : lang).trim() || 'text';
+    const lc = label.toLowerCase();
+    const isCpp = CPP_LANGS.indexOf(lc) !== -1;
+    const body = (isCpp && content.length <= MAX_HIGHLIGHT)
+      ? highlightCpp(content)
+      : esc(content);
+
+    return '<div class="code-block text-box">' +
+      '<div class="code-head">' +
+        '<span class="code-lang">' + esc(label) + '</span>' +
+        '<button class="copy-code" type="button" data-code="' + encodeURIComponent(content) + '">复制</button>' +
+      '</div>' +
+      '<pre class="code-body"><code>' + body + '</code></pre>' +
+    '</div>';
+  }
+
+  function renderMiniCodeInline(code) {
+    const body = (code.length <= MAX_HIGHLIGHT) ? highlightCpp(code) : esc(code);
+    return '<span class="mini-code-inline"><code>' + body + '</code></span>';
+  }
+
+  /* =========================================================
+   *  Markdown 渲染
+   * ========================================================= */
+  function mdInline(text) {
+    const inlineBlocks = [];
+    let raw = String(text).replace(/``([^`]+)``/g, (_, p1) => {
+      inlineBlocks.push(p1);
+      return '\u0000' + (inlineBlocks.length - 1) + '\u0000';
+    });
+
+    let s = esc(raw);
+
+    const inlineCodes = [];
+    s = s.replace(/`([^`]+)`/g, (_, p1) => {
+      inlineCodes.push(p1);
+      return '\u0001' + (inlineCodes.length - 1) + '\u0001';
+    });
+
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+    s = s.replace(/\u0001(\d+)\u0001/g, (_, i) =>
+      '<code class="md-code">' + inlineCodes[Number(i)] + '</code>');
+
+    s = s.replace(/\u0000(\d+)\u0000/g, (_, i) =>
+      renderMiniCodeInline(inlineBlocks[Number(i)]));
+
+    return s;
+  }
+
+  function splitTableRow(line) {
+    let s = line.trim();
+    if (s.startsWith('|')) s = s.slice(1);
+    if (s.endsWith('|'))   s = s.slice(0, -1);
+    return s.split('|').map((x) => x.trim());
+  }
+
+  function renderTable(headerLine, alignLine, rows) {
+    const headers = splitTableRow(headerLine);
+    const aligns = splitTableRow(alignLine).map((a) => {
+      a = a.trim();
+      const l = a.startsWith(':'), r = a.endsWith(':');
+      if (l && r) return 'center';
+      if (r) return 'right';
+      return 'left';
+    });
+
+    let html = '<div class="table-wrap"><table><thead><tr>';
+    headers.forEach((h, idx) => {
+      html += '<th style="text-align:' + (aligns[idx] || 'left') + '">' + mdInline(h) + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    rows.forEach((row) => {
+      const cells = splitTableRow(row);
+      html += '<tr>';
+      headers.forEach((_, idx) => {
+        html += '<td style="text-align:' + (aligns[idx] || 'left') + '">' +
+                mdInline(cells[idx] || '') + '</td>';
+      });
+      html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  function renderMarkdown(md) {
+    const lines = String(md == null ? '' : md).replace(/\r\n?/g, '\n').split('\n');
+    const out = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      const fence = line.match(/^\s*(`{3,}|~{3,})\s*(.*)$/);
+      if (fence) {
+        const marker = fence[1][0];
+        const lang = (fence[2] || '').trim().split(/\s+/)[0];
+        const buf = [];
+        i++;
+        const closeRe = new RegExp('^\\s*' + marker + '{3,}\\s*$');
+        while (i < lines.length && !closeRe.test(lines[i])) {
+          buf.push(lines[i]); i++;
+        }
+        i++;
+        out.push(renderCodeBlock(buf.join('\n'), lang));
+        continue;
+      }
+
+      if (/^\s*``(?!`)/.test(line)) {
+        const trimmed = line.trim();
+
+        const single = trimmed.match(/^``([\s\S]*?)``\s*$/);
+        if (single && single[1].indexOf('``') === -1) {
+          out.push(renderTextBox(single[1], 'text'));
+          i++;
+          continue;
+        }
+
+        const open = trimmed.match(/^``\s*([^\s`]*)\s*$/);
+        if (open) {
+          const lang = open[1] || 'text';
+          const buf = [];
+          i++;
+          while (i < lines.length && !/^\s*``\s*$/.test(lines[i])) {
+            buf.push(lines[i]); i++;
+          }
+          i++;
+          out.push(renderTextBox(buf.join('\n'), lang));
+          continue;
+        }
+      }
+
+      if (
+        /^\s*\|.*\|\s*$/.test(line) &&
+        i + 1 < lines.length &&
+        /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1]) &&
+        /-/.test(lines[i + 1])
+      ) {
+        const headerLine = line;
+        const alignLine  = lines[i + 1];
+        i += 2;
+        const rows = [];
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+          rows.push(lines[i]); i++;
+        }
+        out.push(renderTable(headerLine, alignLine, rows));
+        continue;
+      }
+
+      const h = line.match(/^(#{1,6})\s+(.*)$/);
+      if (h) {
+        const lv = Math.min(h[1].length, 4);
+        out.push('<h' + lv + '>' + mdInline(h[2]) + '</h' + lv + '>');
+        i++; continue;
+      }
+
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+
+      if (/^\s*>\s?/.test(line)) {
+        const buf = [];
+        while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
+          buf.push(lines[i].replace(/^\s*>\s?/, '')); i++;
+        }
+        out.push('<blockquote>' + renderMarkdown(buf.join('\n')) + '</blockquote>');
+        continue;
+      }
+
+      if (/^\s*[-*+]\s+/.test(line)) {
+        const buf = [];
+        while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+          buf.push(lines[i].replace(/^\s*[-*+]\s+/, '')); i++;
+        }
+        out.push('<ul>' + buf.map((t) => '<li>' + mdInline(t) + '</li>').join('') + '</ul>');
+        continue;
+      }
+
+      if (/^\s*\d+[.)]\s+/.test(line)) {
+        const buf = [];
+        while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) {
+          buf.push(lines[i].replace(/^\s*\d+[.)]\s+/, '')); i++;
+        }
+        out.push('<ol>' + buf.map((t) => '<li>' + mdInline(t) + '</li>').join('') + '</ol>');
+        continue;
+      }
+
+      if (/^\s*$/.test(line)) { i++; continue; }
+
+      const buf = [];
+      while (
+        i < lines.length &&
+        !/^\s*$/.test(lines[i]) &&
+        !/^\s*(`{3,}|~{3,})/.test(lines[i]) &&
+        !/^\s*``(?!`)/.test(lines[i]) &&
+        !/^#{1,6}\s/.test(lines[i]) &&
+        !/^\s*[-*+]\s+/.test(lines[i]) &&
+        !/^\s*\d+[.)]\s+/.test(lines[i]) &&
+        !/^\s*>\s?/.test(lines[i]) &&
+        !/^\s*\|.*\|\s*$/.test(lines[i])
+      ) {
+        buf.push(lines[i]); i++;
+      }
+      out.push('<p>' + buf.map(mdInline).join('<br>') + '</p>');
+    }
+
+    return out.join('');
+  }
+
+  /* =========================================================
+   *  DOM & 状态
+   * ========================================================= */
+  const els = {
+    list:            $('#list'),
+    search:          $('#search'),
+    count:           $('#count'),
+    empty:           $('#empty'),
+
+    viewer:          $('#viewer'),
+    viewTitle:       $('#view-title'),
+    viewTitleInput:  $('#view-title-input'),
+    viewMeta:        $('#view-meta'),
+    contentScroll:   $('#content-scroll'),
+    descView:        $('#desc-view'),
+    codeEmbed:       $('#code-embed'),
+
+    descEditor:      $('#desc-editor'),
+    descEditName:    $('#desc-edit-name'),
+    descMdInput:     $('#desc-md-input'),
+    descPreview:     $('#desc-preview'),
+    descPreviewHint: $('#desc-preview-hint'),
+
+    editor:          $('#editor'),
+    editName:        $('#edit-name'),
+    editCode:        $('#edit-code'),
+    hlLayer:         $('#hl-layer'),
+    hlCode:          $('#hl-code'),
+    lineNumbers:     $('#line-numbers'),
+
+    fileInput:       $('#file-input'),
+    toast:           $('#toast'),
+    settingsPanel:   $('#settings-panel'),
+
+    exportModal:     $('#export-modal'),
+    exportList:      $('#export-list'),
+    chkAll:          $('#chk-all'),
+    selCount:        $('#sel-count'),
+    totalCount:      $('#total-count'),
+
+    groupModal:      $('#group-modal'),
+    groupModalTitle: $('#group-modal-title'),
+    groupNameInput:  $('#group-name-input'),
+    groupKwInput:    $('#group-kw-input')
+  };
+
+  let templates   = [];
+  let groups      = [];
+  let currentId   = null;
+  let editingId   = null;
+  let descEditingId = null;
+  let toastTimer  = null;
+  let exportSet   = new Set();
+  let titleCancelling = false;
+  let settings = { font: 'system', size: 14 };
+  let groupPicker = null;
+  let editingGroupId = undefined;
+  let pendingParentId = null;
+
+  function current() { return templates.find((t) => t.id === currentId) || null; }
+
+  /* =========================================================
+   *  分组逻辑
+   * ========================================================= */
+  function getEffectiveGroup(t) {
+    if (t.manualGroupId !== undefined) {
+      if (t.manualGroupId === null) return null;
+      if (groups.some((g) => g.id === t.manualGroupId)) return t.manualGroupId;
+    }
+    if (!groups.length) return null;
+    const hay = ((t.name || '') + ' ' + (t.desc || '')).toLowerCase();
+    for (const g of groups) {
+      if (g.keywords && g.keywords.length) {
+        for (const kw of g.keywords) {
+          if (kw && hay.indexOf(kw.toLowerCase()) !== -1) return g.id;
+        }
+      }
+    }
+    return null;
+  }
+
+  function collectGroupIds(gid) {
+    const set = new Set([gid]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      groups.forEach((g) => {
+        if (g.parentId && set.has(g.parentId) && !set.has(g.id)) {
+          set.add(g.id);
+          changed = true;
+        }
+      });
+    }
+    return set;
+  }
+
+  /* =========================================================
+   *  设置
+   * ========================================================= */
+  function applySettings() {
+    const root = document.documentElement;
+    root.style.setProperty('--ui-font', FONTS[settings.font] || FONTS.system);
+    root.style.setProperty('--ui-size', settings.size + 'px');
+    root.style.setProperty('--md-size', (settings.size * 0.96).toFixed(2) + 'px');
+    root.style.setProperty('--code-size', (settings.size * 0.93).toFixed(2) + 'px');
+  }
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s && typeof s === 'object') {
+          settings.font = FONTS[s.font] ? s.font : 'system';
+          settings.size = Math.max(12, Math.min(20, Number(s.size) || 14));
+        }
+      }
+    } catch (e) {}
+    applySettings();
+    $('#set-size').value = settings.size;
+    $('#set-size-val').textContent = settings.size + 'px';
+    $('#set-font').value = settings.font;
+  }
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
+    applySettings();
+    if (!els.editor.hidden) renderCodeHighlight();
+  }
+
+  /* =========================================================
+   *  ☁ 云端模块（Supabase）
+   * ========================================================= */
+  const SUPABASE_URL      = 'https://cgsgoomfeamjxmawbuxn.supabase.co';   // ← 替换
+  const SUPABASE_ANON_KEY = 'Fc3BEcCA6bREnpbaaw3GGH8M9tNZ4xTH';   // ← 替换
+  const EMAIL_DOMAIN = 'cpplib.local';
+
+  const CLOUD = !!(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase);
+  let sb = null;
+  let cloudUser = null;
+  let pushTimer = null;
+  let pushing = false;
+  let pendingPush = false;
+
+  if (CLOUD) {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+
+  /* ---------- 账号 ---------- */
+  function usernameToEmail(u) { return u.trim().toLowerCase() + '@' + EMAIL_DOMAIN; }
+  function emailToUsername(e) { return String(e || '').replace('@' + EMAIL_DOMAIN, ''); }
+
+  function setUser(user) {
+    cloudUser = user || null;
+    const st  = $('#acc-status');
+    const lo  = $('#btn-login');
+    const out = $('#btn-logout');
+    if (!CLOUD) {
+      st.textContent = '云端未配置';
+      st.classList.remove('online');
+      lo.hidden = true; out.hidden = true;
+      return;
+    }
+    if (user) {
+      st.textContent = emailToUsername(user.email);
+      st.title = user.email;
+      st.classList.add('online');
+      lo.hidden = true; out.hidden = false;
+    } else {
+      st.textContent = '未登录';
+      st.classList.remove('online');
+      lo.hidden = false; out.hidden = true;
+    }
+  }
+
+  function openAuthModal() {
+    if (!CLOUD) { toast('请在代码里填入 SUPABASE_URL 与 ANON KEY'); return; }
+    $('#auth-hint').textContent = '首次使用请先点「注册」，注册成功会自动登录。';
+    $('#auth-pass').value = '';
+    $('#auth-modal').hidden = false;
+    setTimeout(() => $('#auth-user').focus(), 30);
+  }
+
+  function translateAuthError(msg) {
+    const m = String(msg || '');
+    if (/Invalid login credentials/i.test(m))        return '账号或密码错误';
+    if (/User already registered/i.test(m))          return '账号已存在，请直接登录';
+    if (/Email not confirmed/i.test(m))              return '请到 Supabase 后台关闭「Confirm email」';
+    if (/Password should be at least/i.test(m))      return '密码太短（至少 6 位）';
+    if (/Unable to validate email/i.test(m))         return '账号格式不支持，请用字母数字下划线';
+    if (/Failed to fetch|NetworkError/i.test(m))     return '网络异常，请检查 SUPABASE_URL';
+    return m;
+  }
+
+  async function doAuth(mode) {
+    if (!CLOUD) { toast('云端未配置'); return; }
+    const u = $('#auth-user').value.trim();
+    const p = $('#auth-pass').value;
+    const hint = $('#auth-hint');
+
+    if (!/^[A-Za-z0-9_-]{2,32}$/.test(u)) { hint.textContent = '账号需为 2-32 位字母、数字、_ 或 -'; return; }
+    if (p.length < 6)                     { hint.textContent = '密码至少 6 位'; return; }
+
+    const email = usernameToEmail(u);
+    hint.textContent = '处理中…';
+
+    try {
+      if (mode === 'register') {
+        const { error } = await sb.auth.signUp({ email, password: p });
+        if (error) throw error;
+        const { error: e2 } = await sb.auth.signInWithPassword({ email, password: p });
+        if (e2) { hint.textContent = '注册成功，请手动登录。'; return; }
+      } else {
+        const { error } = await sb.auth.signInWithPassword({ email, password: p });
+        if (error) throw error;
+      }
+      $('#auth-modal').hidden = true;
+      toast(mode === 'register' ? '注册成功' : '登录成功');
+      if (!templates.length) await pullCloud(true);
+    } catch (e) {
+      hint.textContent = translateAuthError(e.message);
+    }
+  }
+
+  async function doLogout() {
+    if (!CLOUD) return;
+    clearTimeout(pushTimer);
+    await sb.auth.signOut();
+    toast('已退出登录（本地数据保留）');
+  }
+
+  /* ---------- 哈希编号 ---------- */
+  async function computeShortId(code) {
+    const norm = String(code || '')
+      .replace(/\r\n?/g, '\n')      // 统一换行
+      .replace(/[ \t]+$/gm, '')     // 去掉行尾空白
+      .replace(/\n+$/, '');         // 去掉末尾空行
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(norm));
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+      .slice(0, 10);
+  }
+
+  /* ---------- 分享 ---------- */
+  async function shareCurrent() {
+    const t = current();
+    if (!t) return;
+    if (!CLOUD)          { toast('云端未配置，无法分享'); return; }
+    if (!els.editor.hidden) { toast('请先保存代码再分享'); return; }
+    if (!cloudUser)      { openAuthModal(); return; }
+    if (!(t.code || '').trim()) { toast('代码为空，无法分享'); return; }
+
+    const shortId = await computeShortId(t.code);
+    const { error } = await sb.from('snippets').insert({
+      short_id: shortId,
+      name: t.name,
+      code: t.code,
+      created_by: cloudUser.id
+    });
+
+    // 23505 = 唯一约束冲突（同样代码已被分享过）
+    if (error && error.code !== '23505') {
+      toast('分享失败：' + error.message);
+      return;
+    }
+    showShareResult(shortId, !!error);
+  }
+
+  function showShareResult(shortId, existed) {
+    const url = location.origin + location.pathname + '#s=' + shortId;
+    $('#share-id').value = shortId;
+    $('#share-url').value = url;
+    $('#share-tip').textContent = existed
+      ? '这份代码此前已分享过，编号相同（内容哈希天然去重）。'
+      : '把编号或链接发给别人，他们点「🔗 打开分享」即可导入。';
+    $('#share-modal').hidden = false;
+  }
+
+  /* ---------- 打开分享 ---------- */
+  async function openSharedById(raw, silent) {
+    if (!CLOUD) { toast('云端未配置'); return; }
+    const id = String(raw || '').trim().toLowerCase();
+    if (!/^[0-9a-f]{6,64}$/.test(id)) { if (!silent) toast('编号格式不正确'); return; }
+
+    const { data, error } = await sb
+      .from('snippets')
+      .select('short_id,name,code')
+      .eq('short_id', id)
+      .maybeSingle();
+
+    if (error) { toast('查询失败：' + error.message); return; }
+    if (!data) { if (!silent) toast('未找到编号 ' + id); return; }
+
+    const t = {
+      id: uid(),
+      name: uniqueName(data.name || ('分享 ' + id)),
+      desc: '',
+      code: data.code || '',
+      updated: Date.now()
+    };
+    templates.unshift(t);
+    persist();
+    renderTree();
+    viewTemplate(t.id);
+    toast('已导入分享 ' + id);
+  }
+
+  /* ---------- 云端同步 ---------- */
+  function scheduleCloudPush() {
+    if (!CLOUD || !cloudUser) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => pushCloud(true), 1500);
+  }
+
+  async function pushCloud(silent) {
+    if (!CLOUD || !cloudUser) return;
+    if (pushing) { pendingPush = true; return; }
+    pushing = true;
+    try {
+      const { error } = await sb.from('user_libs').upsert({
+        user_id: cloudUser.id,
+        data: { templates, groups },
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+      if (error) throw error;
+      if (!silent) toast('已上传到云端');
+    } catch (e) {
+      if (!silent) toast('上传失败：' + e.message);
+      else console.warn('cloud push failed:', e);
+    } finally {
+      pushing = false;
+      if (pendingPush) { pendingPush = false; scheduleCloudPush(); }
+    }
+  }
+
+  async function pullCloud(silent) {
+    if (!CLOUD) { toast('云端未配置'); return false; }
+    if (!cloudUser) { toast('请先登录'); return false; }
+
+    const { data, error } = await sb
+      .from('user_libs')
+      .select('data,updated_at')
+      .eq('user_id', cloudUser.id)
+      .maybeSingle();
+
+    if (error) { toast('下载失败：' + error.message); return false; }
+    if (!data || !data.data || !Array.isArray(data.data.templates)) {
+      if (!silent) toast('云端还没有数据');
+      return false;
+    }
+
+    const d = data.data;
+    templates = normalizeTemplates(d.templates);
+    groups = Array.isArray(d.groups) ? normalizeGroups(d.groups) : [];
+    try { localStorage.setItem(KEY, JSON.stringify({ templates, groups })); } catch (e) {}
+
+    currentId = templates[0] ? templates[0].id : null;
+    renderTree();
+    if (currentId) viewTemplate(currentId);
+    else showEmpty();
+
+    if (!silent) toast('已从云端下载');
+    return true;
+  }
+
+  function openSyncModal() {
+    if (!CLOUD) { toast('云端未配置'); return; }
+    if (!cloudUser) { openAuthModal(); return; }
+    $('#sync-info').textContent =
+      '当前账号：' + emailToUsername(cloudUser.email) +
+      '　本地：' + templates.length + ' 个模板 / ' + groups.length + ' 个分组';
+    $('#sync-modal').hidden = false;
+  }
+
+  /* ---------- 云端事件绑定 ---------- */
+  $('#btn-login').addEventListener('click', openAuthModal);
+  $('#btn-logout').addEventListener('click', doLogout);
+  $('#auth-close').addEventListener('click', () => { $('#auth-modal').hidden = true; });
+  $('#auth-modal').addEventListener('click', (e) => {
+    if (e.target === $('#auth-modal')) $('#auth-modal').hidden = true;
+  });
+  $('#auth-register').addEventListener('click', () => doAuth('register'));
+  $('#auth-login-btn').addEventListener('click', () => doAuth('login'));
+  $('#auth-pass').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); doAuth('login'); }
+  });
+
+  $('#btn-share').addEventListener('click', shareCurrent);
+  $('#share-close').addEventListener('click', () => { $('#share-modal').hidden = true; });
+  $('#share-modal').addEventListener('click', (e) => {
+    if (e.target === $('#share-modal')) $('#share-modal').hidden = true;
+  });
+  $('#share-copy-id').addEventListener('click', () => copyText($('#share-id').value, '编号已复制'));
+  $('#share-copy-url').addEventListener('click', () => copyText($('#share-url').value, '链接已复制'));
+
+  $('#btn-open-share').addEventListener('click', () => {
+    if (!CLOUD) { toast('云端未配置'); return; }
+    $('#open-modal').hidden = false;
+    setTimeout(() => $('#open-id').focus(), 30);
+  });
+  $('#open-close').addEventListener('click', () => { $('#open-modal').hidden = true; });
+  $('#open-cancel').addEventListener('click', () => { $('#open-modal').hidden = true; });
+  $('#open-modal').addEventListener('click', (e) => {
+    if (e.target === $('#open-modal')) $('#open-modal').hidden = true;
+  });
+  $('#open-confirm').addEventListener('click', async () => {
+    const id = $('#open-id').value.trim();
+    if (!id) { toast('请输入编号'); return; }
+    $('#open-modal').hidden = true;
+    await openSharedById(id);
+  });
+  $('#open-id').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); $('#open-confirm').click(); }
+  });
+
+  $('#btn-sync').addEventListener('click', openSyncModal);
+  $('#sync-close').addEventListener('click', () => { $('#sync-modal').hidden = true; });
+  $('#sync-modal').addEventListener('click', (e) => {
+    if (e.target === $('#sync-modal')) $('#sync-modal').hidden = true;
+  });
+  $('#sync-push').addEventListener('click', async () => {
+    $('#sync-modal').hidden = true;
+    await pushCloud(false);
+  });
+  $('#sync-pull').addEventListener('click', async () => {
+    if (!confirm('从云端下载会覆盖当前本地数据，确定继续？')) return;
+    $('#sync-modal').hidden = true;
+    await pullCloud(false);
+  });
+
+  // 关闭云端模态框（Esc）
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    ['#auth-modal', '#share-modal', '#open-modal', '#sync-modal'].forEach((sel) => {
+      const el = $(sel);
+      if (el && !el.hidden) el.hidden = true;
+    });
+  });
+
+  /* ---------- 启动云端 ---------- */
+  (async function initCloud() {
+    if (!CLOUD) { setUser(null); return; }
+    try {
+      const { data } = await sb.auth.getSession();
+      setUser(data.session ? data.session.user : null);
+      sb.auth.onAuthStateChange((_event, session) => {
+        setUser(session ? session.user : null);
+      });
+    } catch (e) { setUser(null); }
+  })();
+
+  window.__cloudSchedulePush = scheduleCloudPush;
+
+  /* =========================================================
+   *  持久化 / 迁移
+   * ========================================================= */
+  function persist() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ templates, groups }));
+    } catch (e) {
+      toast('保存失败：' + e.message);
+    }
+    if (typeof window.__cloudSchedulePush === 'function') window.__cloudSchedulePush();
+  }
+
+  function extractFirstCodeBlock(md) {
+    const m = /```[^\n]*\n([\s\S]*?)```/.exec(md || '');
+    return m ? m[1].replace(/\n+$/, '') : null;
+  }
+
+  function normalizeTemplates(arr) {
+    return arr.filter((t) => t && typeof t === 'object').map((t) => {
+      const item = {
+        id:      t.id || uid(),
+        name:    t.name || t.title || '未命名',
+        desc:    typeof t.desc === 'string' ? t.desc : '',
+        code:    typeof t.code === 'string' ? t.code : (extractFirstCodeBlock(t.content) || ''),
+        updated: t.updated || Date.now()
+      };
+      if ('manualGroupId' in t) item.manualGroupId = t.manualGroupId;
+      return item;
+    });
+  }
+
+  function normalizeGroups(arr) {
+    return arr.filter((g) => g && typeof g === 'object').map((g) => ({
+      id:        g.id || uid(),
+      name:      g.name || '未命名分组',
+      parentId:  g.parentId || null,
+      collapsed: !!g.collapsed,
+      keywords:  Array.isArray(g.keywords) ? g.keywords.filter((k) => typeof k === 'string') : []
+    }));
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data && typeof data === 'object' && Array.isArray(data.templates)) {
+          templates = normalizeTemplates(data.templates);
+          groups = Array.isArray(data.groups) ? normalizeGroups(data.groups) : [];
+          return;
+        }
+      }
+    } catch (e) {}
+
+    for (const k of OLD_KEYS) {
+      try {
+        const raw = localStorage.getItem(k);
+        if (!raw) continue;
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          templates = normalizeTemplates(arr);
+          groups = [];
+          persist();
+          return;
+        }
+      } catch (e) {}
+    }
+
+    templates = [];
+    groups = [];
+  }
+
+  /* =========================================================
+   *  提示 / 剪贴板
+   * ========================================================= */
+  function toast(msg) {
+    els.toast.textContent = msg;
+    els.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => els.toast.classList.remove('show'), 1800);
+  }
+
+  function copyText(text, msg) {
+    const done = () => toast(msg || '已复制到剪贴板');
+    const fallback = () => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      ok ? done() : toast('复制失败，请手动选择复制');
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done).catch(fallback);
+    } else { fallback(); }
+  }
+
+  /* =========================================================
+   *  树形列表渲染
+   * ========================================================= */
+  function matchSearch(t, q) {
+    if (!q) return true;
+    return ((t.name || '') + '\n' + (t.desc || '') + '\n' + (t.code || ''))
+      .toLowerCase().indexOf(q) !== -1;
+  }
+
+  function renderTree() {
+    const q = els.search.value.trim().toLowerCase();
+
+    const templatesByGroup = new Map();
+    const ungrouped = [];
+    templates.forEach((t) => {
+      if (!matchSearch(t, q)) return;
+      const gid = getEffectiveGroup(t);
+      if (gid) {
+        if (!templatesByGroup.has(gid)) templatesByGroup.set(gid, []);
+        templatesByGroup.get(gid).push(t);
+      } else {
+        ungrouped.push(t);
+      }
+    });
+
+    const groupTotal = new Map();
+    function calcTotal(gid) {
+      let n = (templatesByGroup.get(gid) || []).length;
+      groups.filter((g) => g.parentId === gid).forEach((cg) => {
+        n += calcTotal(cg.id);
+      });
+      groupTotal.set(gid, n);
+      return n;
+    }
+    groups.filter((g) => g.parentId === null).forEach((g) => calcTotal(g.id));
+
+    const out = [];
+
+    function renderGroup(g, depth) {
+      const childGroups = groups.filter((x) => x.parentId === g.id);
+      const directTemplates = templatesByGroup.get(g.id) || [];
+      const total = groupTotal.get(g.id) || 0;
+
+      if (q && total === 0) return;
+
+      const expanded = q ? true : !g.collapsed;
+      const pad = depth * 16;
+
+      out.push(
+        '<div class="tree-node group-node" style="padding-left:' + (pad + 10) + 'px" data-gid="' + g.id + '">' +
+          '<span class="arrow">' + (expanded ? '▾' : '▸') + '</span>' +
+          '<span class="folder-icon">' + (expanded ? '📂' : '📁') + '</span>' +
+          '<span class="node-name" title="' + esc(g.name) + '">' + esc(g.name) + '</span>' +
+          '<span class="node-count">(' + total + ')</span>' +
+          '<div class="node-ops">' +
+            '<button class="node-op" data-gop="add-sub" title="新建子分组">＋</button>' +
+            '<button class="node-op" data-gop="edit" title="编辑分组">⚙</button>' +
+            '<button class="node-op" data-gop="export" title="导出分组">📤</button>' +
+            '<button class="node-op danger" data-gop="delete" title="删除分组">✕</button>' +
+          '</div>' +
+        '</div>'
+      );
+
+      if (expanded) {
+        childGroups.forEach((cg) => renderGroup(cg, depth + 1));
+        directTemplates.forEach((t) => renderTemplate(t, depth + 1));
+      }
+    }
+
+    function renderTemplate(t, depth) {
+      const pad = depth * 16;
+      const active = t.id === currentId ? ' active' : '';
+      out.push(
+        '<div class="tree-node template-node' + active + '" style="padding-left:' + (pad + 10) + 'px" data-tid="' + t.id + '">' +
+          '<span class="arrow"></span>' +
+          '<span class="file-icon">📄</span>' +
+          '<span class="node-name" title="' + esc(t.name) + '">' + esc(t.name) + '</span>' +
+          '<div class="node-ops">' +
+            '<button class="node-op" data-top="rename" title="编辑名称">✎</button>' +
+            '<button class="node-op" data-top="copy" title="复制代码">⧉</button>' +
+            '<button class="node-op" data-top="move" title="移动到分组">⇄</button>' +
+            '<button class="node-op danger" data-top="delete" title="删除">✕</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    groups.filter((g) => g.parentId === null || !groups.some((p) => p.id === g.parentId))
+      .forEach((g) => renderGroup(g, 0));
+
+    if (ungrouped.length) {
+      const pad = 10;
+      out.push(
+        '<div class="tree-node group-node" style="padding-left:' + pad + 'px" data-virtual="ungrouped">' +
+          '<span class="arrow"></span>' +
+          '<span class="folder-icon">📄</span>' +
+          '<span class="node-name" style="color:#9aa4b2">未分组</span>' +
+          '<span class="node-count">(' + ungrouped.length + ')</span>' +
+        '</div>'
+      );
+      ungrouped.forEach((t) => renderTemplate(t, 1));
+    }
+
+    if (!out.length) {
+      const empty = !templates.length && !groups.length;
+      els.list.innerHTML = empty
+        ? '<div class="list-empty">还没有模板或分组\n点击「＋ 新建」/「📥 导入」开始\n或点「📁 分组」建立分组</div>'
+        : '<div class="list-empty">' + (q ? '没有匹配的内容' : '没有内容') + '</div>';
+    } else {
+      els.list.innerHTML = out.join('');
+    }
+
+    els.count.textContent = templates.length + ' 个模板 · ' + groups.length + ' 个分组';
+  }
+
+  /* =========================================================
+   *  视图切换
+   * ========================================================= */
+  function showEmpty()  { els.empty.hidden=false; els.viewer.hidden=true;  els.editor.hidden=true; els.descEditor.hidden=true; }
+  function showViewer() { els.empty.hidden=true;  els.viewer.hidden=false; els.editor.hidden=true; els.descEditor.hidden=true; }
+  function showCodeEditor() { els.empty.hidden=true; els.viewer.hidden=true; els.editor.hidden=false; els.descEditor.hidden=true; }
+  function showDescEditor() { els.empty.hidden=true; els.viewer.hidden=true; els.editor.hidden=true; els.descEditor.hidden=false; }
+
+  /* =========================================================
+   *  标题内联编辑
+   * ========================================================= */
+  function commitTitleIfEditing() {
+    if (els.viewTitleInput.hidden) return;
+    const t = current();
+    if (t) {
+      const v = els.viewTitleInput.value.trim() || '未命名';
+      if (v !== t.name) { t.name = v; t.updated = Date.now(); persist(); renderTree(); }
+      els.viewTitle.textContent = t.name;
+      els.viewTitle.title = t.name;
+    }
+    els.viewTitle.hidden = false;
+    els.viewTitleInput.hidden = true;
+  }
+  function enterTitleEdit() {
+    const t = current(); if (!t) return;
+    if (!els.editor.hidden || !els.descEditor.hidden) { showViewer(); renderViewerBody(t); }
+    els.viewTitle.hidden = true;
+    els.viewTitleInput.hidden = false;
+    els.viewTitleInput.value = t.name;
+    els.viewTitleInput.focus();
+    els.viewTitleInput.select();
+  }
+  function exitTitleEdit(save) {
+    const t = current();
+    if (save && t) {
+      const v = els.viewTitleInput.value.trim() || '未命名';
+      if (v !== t.name) { t.name = v; t.updated = Date.now(); persist(); renderTree(); toast('名称已更新'); }
+      els.viewTitle.textContent = t.name;
+      els.viewTitle.title = t.name;
+    } else if (t) { els.viewTitle.textContent = t.name; }
+    els.viewTitle.hidden = false;
+    els.viewTitleInput.hidden = true;
+  }
+  els.viewTitleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); els.viewTitleInput.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); titleCancelling = true; els.viewTitleInput.blur(); }
+  });
+  els.viewTitleInput.addEventListener('blur', () => {
+    if (titleCancelling) { titleCancelling = false; exitTitleEdit(false); }
+    else                 { exitTitleEdit(true); }
+  });
+
+  /* =========================================================
+   *  查看区渲染
+   * ========================================================= */
+  function renderDesc(t) {
+    const text = (t.desc || '').trim();
+    if (text) {
+      els.descView.innerHTML = renderMarkdown(text);
+      els.descView.classList.remove('empty');
+      els.descView.hidden = false;
+    } else {
+      els.descView.innerHTML = '暂无简介（点击「✎ 编辑简介」用 Markdown 补充说明，支持标题、表格、``cpp 代码块``、代码块…）';
+      els.descView.classList.add('empty');
+      els.descView.hidden = false;
+    }
+  }
+  function renderCodeEmbed(t) { els.codeEmbed.innerHTML = renderCodeBlock(t.code || '', 'cpp'); }
+  function renderViewerBody(t) { renderDesc(t); renderCodeEmbed(t); }
+
+  function viewTemplate(id) {
+    commitTitleIfEditing();
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+
+    currentId = id;
+    els.viewTitle.textContent = t.name;
+    els.viewTitle.title = t.name;
+    els.viewTitle.hidden = false;
+    els.viewTitleInput.hidden = true;
+
+    const lines = t.code ? t.code.split('\n').length : 0;
+    els.viewMeta.textContent = lines + ' 行 · ' + formatSize(t.code.length);
+
+    renderViewerBody(t);
+    els.contentScroll.scrollTop = 0;
+
+    showViewer();
+    renderTree();
+  }
+
+  /* =========================================================
+   *  简介编辑器
+   * ========================================================= */
+  let descRafPending = false;
+  function renderDescPreviewNow() {
+    const md = els.descMdInput.value;
+    if (md.trim()) {
+      els.descPreview.innerHTML = renderMarkdown(md);
+      els.descPreviewHint.textContent = md.split('\n').length + ' 行';
+    } else {
+      els.descPreview.innerHTML = '<span style="color:#4d5563;font-style:italic">暂无内容</span>';
+      els.descPreviewHint.textContent = '空';
+    }
+  }
+  function scheduleDescPreview() {
+    if (descRafPending) return;
+    descRafPending = true;
+    requestAnimationFrame(() => { descRafPending = false; renderDescPreviewNow(); });
+  }
+  function openDescEditor() {
+    const t = current(); if (!t) return;
+    commitTitleIfEditing();
+    descEditingId = t.id;
+    els.descEditName.textContent = t.name;
+    els.descMdInput.value = t.desc || '';
+    showDescEditor();
+    renderDescPreviewNow();
+    els.descMdInput.focus();
+  }
+  function saveDescEditor() {
+    if (!descEditingId) { cancelDescEditor(); return; }
+    const t = templates.find((x) => x.id === descEditingId);
+    if (t) { t.desc = els.descMdInput.value; t.updated = Date.now(); }
+    descEditingId = null;
+    persist();
+    viewTemplate(currentId);
+    toast('简介已保存');
+  }
+  function cancelDescEditor() {
+    descEditingId = null;
+    if (currentId && templates.some((t) => t.id === currentId)) viewTemplate(currentId);
+    else { currentId = null; showEmpty(); renderTree(); }
+  }
+  els.descMdInput.addEventListener('input', scheduleDescPreview);
+  els.descMdInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); cancelDescEditor(); }
+  });
+  bindTabIndent(els.descMdInput);
+  $('#btn-desc-save').addEventListener('click', saveDescEditor);
+  $('#btn-desc-cancel').addEventListener('click', cancelDescEditor);
+  $('#btn-desc').addEventListener('click', openDescEditor);
+
+  /* =========================================================
+   *  代码编辑器
+   * ========================================================= */
+  const PAIRS = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`' };
+  const CLOSERS = new Set([')', ']', '}', '"', "'", '`']);
+  let codeRafPending = false;
+
+  function renderLineNumbers() {
+    const val = els.editCode.value;
+    const n = val.split('\n').length;
+    let s = '';
+    for (let i = 1; i <= n; i++) s += i + '\n';
+    els.lineNumbers.textContent = s.slice(0, -1);
+  }
+  function renderCodeHighlight() {
+    const code = els.editCode.value;
+    if (code.length > MAX_HIGHLIGHT) {
+      els.hlCode.textContent = code + '\n';
+    } else {
+      els.hlCode.innerHTML = highlightCpp(code) + '\n';
+    }
+    renderLineNumbers();
+    syncScroll();
+  }
+  function syncScroll() {
+    els.hlLayer.scrollTop = els.editCode.scrollTop;
+    els.hlLayer.scrollLeft = els.editCode.scrollLeft;
+    els.lineNumbers.scrollTop = els.editCode.scrollTop;
+  }
+  function scheduleCodeHighlight() {
+    if (codeRafPending) return;
+    codeRafPending = true;
+    requestAnimationFrame(() => { codeRafPending = false; renderCodeHighlight(); });
+  }
+  function onCodeInput() { scheduleCodeHighlight(); }
+
+  function handleCodeEnter(ta) {
+    const start = ta.selectionStart, end = ta.selectionEnd, val = ta.value;
+    const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+    const lineText = val.slice(lineStart, start);
+    const indentMatch = lineText.match(/^[ \t]*/);
+    const indent = indentMatch ? indentMatch[0] : '';
+    const before = val.slice(0, start).replace(/[ \t]+$/, '');
+    const lastChar = before.slice(-1);
+    const nextChar = val[end];
+
+    let insertText = '\n' + indent;
+    let cursorOffset = insertText.length;
+
+    if (lastChar === '{') {
+      if (nextChar === '}') {
+        insertText = '\n' + indent + INDENT_UNIT + '\n' + indent;
+        cursorOffset = ('\n' + indent + INDENT_UNIT).length;
+      } else {
+        insertText = '\n' + indent + INDENT_UNIT;
+        cursorOffset = insertText.length;
+      }
+    } else if (lastChar === '(' || lastChar === '[') {
+      if ((lastChar === '(' && nextChar === ')') ||
+          (lastChar === '[' && nextChar === ']')) {
+        insertText = '\n' + indent + INDENT_UNIT + '\n' + indent;
+        cursorOffset = ('\n' + indent + INDENT_UNIT).length;
+      } else {
+        insertText = '\n' + indent + INDENT_UNIT;
+        cursorOffset = insertText.length;
+      }
+    }
+    ta.value = val.slice(0, start) + insertText + val.slice(end);
+    ta.selectionStart = ta.selectionEnd = start + cursorOffset;
+    onCodeInput();
+  }
+
+  function handleCodeKeyDown(e) {
+    const ta = e.target;
+    const start = ta.selectionStart, end = ta.selectionEnd, val = ta.value;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    if (PAIRS[e.key]) {
+      e.preventDefault();
+      const selected = val.slice(start, end);
+      if (selected) {
+        ta.value = val.slice(0, start) + e.key + selected + PAIRS[e.key] + val.slice(end);
+        ta.selectionStart = start + 1;
+        ta.selectionEnd = start + 1 + selected.length;
+      } else {
+        ta.value = val.slice(0, start) + e.key + PAIRS[e.key] + val.slice(end);
+        ta.selectionStart = ta.selectionEnd = start + 1;
+      }
+      onCodeInput();
+      return;
+    }
+    if (CLOSERS.has(e.key)) {
+      if (start === end && val[start] === e.key) {
+        e.preventDefault();
+        ta.selectionStart = ta.selectionEnd = start + 1;
+        return;
+      }
+      return;
+    }
+    if (e.key === 'Backspace' && start === end && start > 0) {
+      const b = val[start - 1], a = val[start];
+      if (PAIRS[b] && PAIRS[b] === a) {
+        e.preventDefault();
+        ta.value = val.slice(0, start - 1) + val.slice(start + 1);
+        ta.selectionStart = ta.selectionEnd = start - 1;
+        onCodeInput();
+        return;
+      }
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleCodeEnter(ta);
+      return;
+    }
+    if (e.key === '}' && start === end) {
+      const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+      const lineBefore = val.slice(lineStart, start);
+      if (/^[ \t]+$/.test(lineBefore)) {
+        e.preventDefault();
+        let indent = lineBefore;
+        if (indent.endsWith(INDENT_UNIT)) indent = indent.slice(0, -INDENT_UNIT.length);
+        else if (indent.endsWith('\t'))   indent = indent.slice(0, -1);
+        else                              indent = indent.slice(0, -1);
+        if (val[start] === '}') {
+          ta.value = val.slice(0, lineStart) + indent + val.slice(start + 1);
+          ta.selectionStart = ta.selectionEnd = lineStart + indent.length;
+        } else {
+          ta.value = val.slice(0, lineStart) + indent + '}' + val.slice(start);
+          ta.selectionStart = ta.selectionEnd = lineStart + indent.length + 1;
+        }
+        onCodeInput();
+        return;
+      }
+    }
+  }
+
+  function openCodeEditor(id) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    commitTitleIfEditing();
+    editingId = id;
+    currentId = id;
+    els.editName.textContent = t.name;
+    els.editCode.value = t.code;
+    els.editCode.scrollTop = 0;
+    els.editCode.scrollLeft = 0;
+    showCodeEditor();
+    renderTree();
+    renderCodeHighlight();
+    els.editCode.focus();
+  }
+  function saveCodeEditor() {
+    if (!editingId) { cancelCodeEditor(); return; }
+    const t = templates.find((x) => x.id === editingId);
+    if (t) { t.code = els.editCode.value; t.updated = Date.now(); }
+    editingId = null;
+    persist();
+    viewTemplate(currentId);
+    toast('代码已保存');
+  }
+  function cancelCodeEditor() {
+    editingId = null;
+    if (currentId && templates.some((t) => t.id === currentId)) viewTemplate(currentId);
+    else { currentId = null; showEmpty(); renderTree(); }
+  }
+  els.editCode.addEventListener('input', onCodeInput);
+  els.editCode.addEventListener('keydown', handleCodeKeyDown);
+  els.editCode.addEventListener('scroll', syncScroll);
+  els.editCode.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); cancelCodeEditor(); }
+  });
+  $('#btn-save').addEventListener('click', saveCodeEditor);
+  $('#btn-cancel').addEventListener('click', cancelCodeEditor);
+
+  /* =========================================================
+   *  分组操作
+   * ========================================================= */
+  function openGroupModal(gid, parentId) {
+    editingGroupId = gid === undefined ? null : gid;
+    pendingParentId = parentId || null;
+
+    if (editingGroupId) {
+      const g = groups.find((x) => x.id === editingGroupId);
+      if (!g) return;
+      els.groupModalTitle.textContent = '编辑分组';
+      els.groupNameInput.value = g.name;
+      els.groupKwInput.value = (g.keywords || []).join(', ');
+    } else {
+      const parent = pendingParentId ? groups.find((x) => x.id === pendingParentId) : null;
+      els.groupModalTitle.textContent = parent ? ('新建子分组 · ' + parent.name) : '新建分组';
+      els.groupNameInput.value = '';
+      els.groupKwInput.value = '';
+    }
+    els.groupModal.hidden = false;
+    els.groupNameInput.focus();
+    els.groupNameInput.select();
+  }
+  function closeGroupModal() {
+    els.groupModal.hidden = true;
+    editingGroupId = undefined;
+    pendingParentId = null;
+  }
+  function saveGroupModal() {
+    const name = els.groupNameInput.value.trim() || '新分组';
+    const keywords = els.groupKwInput.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+
+    if (editingGroupId) {
+      const g = groups.find((x) => x.id === editingGroupId);
+      if (g) { g.name = name; g.keywords = keywords; }
+    } else {
+      const g = {
+        id: uid(),
+        name: name,
+        parentId: pendingParentId,
+        collapsed: false,
+        keywords: keywords
+      };
+      groups.push(g);
+    }
+
+    persist();
+    closeGroupModal();
+    renderTree();
+    toast('分组已保存');
+  }
+  $('#group-modal-close').addEventListener('click', closeGroupModal);
+  $('#group-modal-cancel').addEventListener('click', closeGroupModal);
+  $('#group-modal-save').addEventListener('click', saveGroupModal);
+  els.groupModal.addEventListener('click', (e) => {
+    if (e.target === els.groupModal) closeGroupModal();
+  });
+  els.groupNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); els.groupKwInput.focus(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeGroupModal(); }
+  });
+  els.groupKwInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveGroupModal(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeGroupModal(); }
+  });
+
+  function createGroup(parentId) {
+    openGroupModal(null, parentId || null);
+  }
+
+  function deleteGroup(g) {
+    const ids = collectGroupIds(g.id);
+    const affected = templates.filter((t) => t.manualGroupId && ids.has(t.manualGroupId));
+    const parts = ['确定删除分组「' + g.name + '」吗？'];
+    if (ids.size > 1) parts.push('将同时删除 ' + (ids.size - 1) + ' 个子分组');
+    if (affected.length) parts.push(affected.length + ' 个模板将移回未分组（自动分组不受影响）');
+    if (!confirm(parts.join('\n'))) return;
+
+    affected.forEach((t) => { t.manualGroupId = null; });
+    groups = groups.filter((x) => !ids.has(x.id));
+    persist();
+    renderTree();
+    toast('分组已删除');
+  }
+
+  async function exportGroup(g) {
+    const ids = collectGroupIds(g.id);
+    const list = templates.filter((t) => {
+      const gid = getEffectiveGroup(t);
+      return gid && ids.has(gid);
+    });
+    if (!list.length) { toast('该分组下没有模板'); return; }
+    await downloadTemplates(list);
+  }
+
+  /* =========================================================
+   *  分组选择浮层
+   * ========================================================= */
+  function closeGroupPicker() {
+    if (groupPicker) {
+      groupPicker.remove();
+      groupPicker = null;
+    }
+  }
+
+  function showGroupPicker(tid, anchor) {
+    closeGroupPicker();
+    const t = templates.find((x) => x.id === tid);
+    if (!t) return;
+
+    const picker = document.createElement('div');
+    picker.className = 'group-picker';
+
+    const effectiveGid = getEffectiveGroup(t);
+
+    function addItem(gid, label, depth) {
+      const item = document.createElement('div');
+      item.className = 'picker-item' + (gid === effectiveGid ? ' selected' : '');
+      item.style.paddingLeft = (12 + depth * 14) + 'px';
+      item.textContent = (gid === null ? '○' : '📁') + ' ' + label;
+      item.addEventListener('click', () => {
+        t.manualGroupId = gid;
+        t.updated = Date.now();
+        persist();
+        closeGroupPicker();
+        renderTree();
+        toast('已移动到 ' + label);
+      });
+      picker.appendChild(item);
+    }
+
+    addItem(null, '未分组', 0);
+
+    function addGroup(g, depth) {
+      addItem(g.id, g.name, depth);
+      groups.filter((x) => x.parentId === g.id).forEach((cg) => addGroup(cg, depth + 1));
+    }
+    groups.filter((g) => g.parentId === null).forEach((g) => addGroup(g, 0));
+
+    if (!groups.length) {
+      const hint = document.createElement('div');
+      hint.className = 'picker-empty';
+      hint.textContent = '还没有分组，先点「📁 分组」建立';
+      picker.appendChild(hint);
+    }
+
+    const rect = anchor.getBoundingClientRect();
+    picker.style.left = Math.min(rect.left, window.innerWidth - 200) + 'px';
+    picker.style.top = Math.min(rect.bottom + 4, window.innerHeight - 260) + 'px';
+
+    document.body.appendChild(picker);
+    groupPicker = picker;
+  }
+
+  document.addEventListener('click', (e) => {
+    if (groupPicker && !groupPicker.contains(e.target)) closeGroupPicker();
+  });
+
+  /* =========================================================
+   *  列表事件
+   * ========================================================= */
+  els.list.addEventListener('click', (e) => {
+    const groupNode = e.target.closest('.group-node');
+    const templateNode = e.target.closest('.template-node');
+
+    const op = e.target.closest('.node-op');
+    if (op) {
+      e.stopPropagation();
+      if (groupNode) {
+        const g = groups.find((x) => x.id === groupNode.dataset.gid);
+        if (!g) return;
+        const gop = op.dataset.gop;
+        if (gop === 'add-sub') createGroup(g.id);
+        else if (gop === 'edit') openGroupModal(g.id);
+        else if (gop === 'export') exportGroup(g);
+        else if (gop === 'delete') deleteGroup(g);
+      } else if (templateNode) {
+        const t = templates.find((x) => x.id === templateNode.dataset.tid);
+        if (!t) return;
+        const top = op.dataset.top;
+        if (top === 'rename') { viewTemplate(t.id); enterTitleEdit(); }
+        else if (top === 'copy') copyText(t.code, '代码已复制');
+        else if (top === 'move') showGroupPicker(t.id, op);
+        else if (top === 'delete') deleteTemplate(t.id);
+      }
+      return;
+    }
+
+    if (groupNode) {
+      if (groupNode.dataset.virtual === 'ungrouped') return;
+      const g = groups.find((x) => x.id === groupNode.dataset.gid);
+      if (g) {
+        g.collapsed = !g.collapsed;
+        persist();
+        renderTree();
+      }
+      return;
+    }
+
+    if (templateNode) {
+      viewTemplate(templateNode.dataset.tid);
+    }
+  });
+
+  /* =========================================================
+   *  删除模板
+   * ========================================================= */
+  function deleteTemplate(id) {
+    const t = templates.find((x) => x.id === id);
+    if (!t) return;
+    if (!confirm('确定删除模板「' + t.name + '」吗？此操作不可撤销。')) return;
+    const idx = templates.findIndex((x) => x.id === id);
+    templates.splice(idx, 1);
+    persist();
+    if (editingId === id) editingId = null;
+    if (descEditingId === id) descEditingId = null;
+    exportSet.delete(id);
+    if (currentId === id) {
+      const next = templates[Math.min(idx, templates.length - 1)];
+      if (next) { currentId = next.id; viewTemplate(next.id); }
+      else { currentId = null; showEmpty(); }
+    }
+    renderTree();
+    toast('已删除');
+  }
+
+  /* =========================================================
+   *  导入
+   * ========================================================= */
+  function uniqueName(base) {
+    let name = base, i = 2;
+    while (templates.some((t) => t.name === name)) { name = base + '(' + i + ')'; i++; }
+    return name;
+  }
+  async function importFiles(files) {
+    if (!files || !files.length) return;
+    let okCount = 0;
+    const newIds = [];
+    for (const file of files) {
+      try {
+        const text = await file.text();
+        const base = file.name.replace(/\.[^./\\]+$/, '') || file.name;
+        const t = { id: uid(), name: uniqueName(base), desc: '', code: text, updated: Date.now() };
+        templates.unshift(t);
+        newIds.push(t.id);
+        okCount++;
+      } catch (e) { console.error('导入失败：', file.name, e); }
+    }
+    if (!okCount) { toast('导入失败'); return; }
+    persist();
+    renderTree();
+    const firstId = newIds[newIds.length - 1];
+    if (firstId) viewTemplate(firstId);
+    toast('已导入 ' + okCount + ' 个模板');
+  }
+
+  /* =========================================================
+   *  导出
+   * ========================================================= */
+  function buildExportContent(t) {
+    const desc = (t.desc || '').trim();
+    let out = '';
+    if (desc) {
+      const safe = desc.replace(/\*\//g, '* /');
+      out += '/*\n';
+      safe.split('\n').forEach((line) => { out += ' * ' + line + '\n'; });
+      out += ' */\n\n';
+    }
+    out += (t.code || '');
+    return out;
+  }
+  function buildMarkdown(t) {
+    const desc = (t.desc || '').trim();
+    const code = (t.code || '').replace(/\n+$/, '');
+    let out = desc ? desc + '\n\n' : '';
+    out += '```cpp\n' + code + '\n```\n';
+    return out;
+  }
+  function download(filename, content) {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  async function downloadTemplates(list) {
+    if (!list.length) { toast('没有可导出的模板'); return; }
+    if (list.length > 5) {
+      if (!confirm('将依次下载 ' + list.length + ' 个 .cpp 文件。\n浏览器可能提示「允许多文件下载」，请选择允许。继续？')) return;
+    }
+    const usedNames = new Set();
+    for (let i = 0; i < list.length; i++) {
+      const t = list[i];
+      const base = sanitizeFilename(t.name);
+      let filename = base + '.cpp';
+      let k = 2;
+      while (usedNames.has(filename.toLowerCase())) {
+        filename = base + '(' + k + ').cpp';
+        k++;
+      }
+      usedNames.add(filename.toLowerCase());
+      download(filename, buildExportContent(t));
+      await new Promise((r) => setTimeout(r, 280));
+    }
+    toast('已导出 ' + list.length + ' 个文件');
+  }
+
+  function renderExportList() {
+    els.exportList.innerHTML = '';
+    els.totalCount.textContent = templates.length;
+    if (!templates.length) {
+      const li = document.createElement('li');
+      li.className = 'export-empty';
+      li.textContent = '还没有模板可以导出';
+      els.exportList.appendChild(li);
+      return;
+    }
+    templates.forEach((t) => {
+      const li = document.createElement('li');
+      li.dataset.id = t.id;
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = exportSet.has(t.id);
+      const name = document.createElement('span');
+      name.className = 'ex-name';
+      name.textContent = t.name;
+      const meta = document.createElement('span');
+      meta.className = 'ex-meta';
+      meta.textContent = t.code ? (t.code.split('\n').length + ' 行') : '空';
+      li.appendChild(cb);
+      li.appendChild(name);
+      li.appendChild(meta);
+      li.addEventListener('click', (e) => {
+        if (e.target !== cb) cb.checked = !cb.checked;
+        if (cb.checked) exportSet.add(t.id);
+        else            exportSet.delete(t.id);
+        syncExportToolbar();
+      });
+      els.exportList.appendChild(li);
+    });
+    syncExportToolbar();
+  }
+  function syncExportToolbar() {
+    const total = templates.length;
+    const sel = templates.filter((t) => exportSet.has(t.id)).length;
+    els.selCount.textContent = sel;
+    els.chkAll.checked = (total > 0 && sel === total);
+    els.chkAll.indeterminate = (sel > 0 && sel < total);
+  }
+  function openExportModal() {
+    if (!templates.length) { toast('还没有模板可以导出'); return; }
+    exportSet = new Set(templates.map((t) => t.id));
+    renderExportList();
+    els.exportModal.hidden = false;
+  }
+  function closeExportModal() { els.exportModal.hidden = true; }
+  async function exportSelected() {
+    const selected = templates.filter((t) => exportSet.has(t.id));
+    if (!selected.length) { toast('请至少选择一个模板'); return; }
+    closeExportModal();
+    await downloadTemplates(selected);
+  }
+
+  /* =========================================================
+   *  事件绑定
+   * ========================================================= */
+  $('#btn-new').addEventListener('click', () => {
+    const t = { id: uid(), name: uniqueName('新建模板'), desc: '', code: '', updated: Date.now() };
+    templates.unshift(t);
+    persist();
+    currentId = t.id;
+    renderTree();
+    viewTemplate(t.id);
+    enterTitleEdit();
+  });
+
+  $('#btn-import').addEventListener('click', () => els.fileInput.click());
+  $('#btn-export').addEventListener('click', openExportModal);
+  $('#btn-group').addEventListener('click', () => createGroup(null));
+
+  els.fileInput.addEventListener('change', () => {
+    const files = Array.from(els.fileInput.files || []);
+    els.fileInput.value = '';
+    if (files.length) importFiles(files);
+  });
+
+  els.search.addEventListener('input', renderTree);
+
+  $('#btn-edit').addEventListener('click', () => { if (currentId) openCodeEditor(currentId); });
+  $('#btn-copy').addEventListener('click', () => {
+    const t = current();
+    if (t) copyText(t.code, '代码已复制');
+  });
+  $('#btn-copy-md').addEventListener('click', () => {
+    const t = current();
+    if (t) copyText(buildMarkdown(t), 'Markdown（简介 + 代码块）已复制');
+  });
+  $('#btn-del').addEventListener('click', () => { if (currentId) deleteTemplate(currentId); });
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.copy-code');
+    if (!btn) return;
+    const code = decodeURIComponent(btn.dataset.code || '');
+    copyText(code, '代码已复制');
+    const old = btn.textContent;
+    btn.textContent = '已复制 ✓';
+    setTimeout(() => { btn.textContent = old; }, 1200);
+  });
+
+  els.chkAll.addEventListener('change', () => {
+    if (els.chkAll.checked) exportSet = new Set(templates.map((t) => t.id));
+    else                    exportSet.clear();
+    els.exportList.querySelectorAll('li[data-id]').forEach((li) => {
+      const cb = li.querySelector('input[type=checkbox]');
+      if (cb) cb.checked = exportSet.has(li.dataset.id);
+    });
+    syncExportToolbar();
+  });
+  $('#modal-close').addEventListener('click', closeExportModal);
+  $('#export-cancel').addEventListener('click', closeExportModal);
+  $('#export-confirm').addEventListener('click', exportSelected);
+  els.exportModal.addEventListener('click', (e) => {
+    if (e.target === els.exportModal) closeExportModal();
+  });
+
+  $('#btn-settings').addEventListener('click', (e) => {
+    e.stopPropagation();
+    els.settingsPanel.hidden = !els.settingsPanel.hidden;
+  });
+  document.addEventListener('click', (e) => {
+    if (els.settingsPanel.hidden) return;
+    if (els.settingsPanel.contains(e.target)) return;
+    if (e.target.closest('#btn-settings')) return;
+    els.settingsPanel.hidden = true;
+  });
+  $('#set-size').addEventListener('input', () => {
+    settings.size = Number($('#set-size').value) || 14;
+    $('#set-size-val').textContent = settings.size + 'px';
+    saveSettings();
+  });
+  $('#set-font').addEventListener('change', () => {
+    settings.font = $('#set-font').value;
+    saveSettings();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      if (!els.editor.hidden) saveCodeEditor();
+      else if (!els.descEditor.hidden) saveDescEditor();
+      else if (!els.groupModal.hidden) saveGroupModal();
+      return;
+    }
+    if (e.key === 'Escape') {
+      if (!els.exportModal.hidden) { closeExportModal(); return; }
+      if (!els.groupModal.hidden) { closeGroupModal(); return; }
+      if (!els.settingsPanel.hidden) { els.settingsPanel.hidden = true; return; }
+    }
+  });
+
+  /* =========================================================
+   *  启动
+   * ========================================================= */
+  loadSettings();
+  load();
+  renderTree();
+
+  if (templates.length) {
+    currentId = templates[0].id;
+    viewTemplate(currentId);
+  } else {
+    showEmpty();
+  }
+
+  // 支持通过 #s=编号 直接打开分享
+  (function checkShareHash() {
+    const m = location.hash.match(/^#s=([0-9a-fA-F]{6,64})$/);
+    if (m && CLOUD) {
+      setTimeout(() => openSharedById(m[1]), 300);
+    }
+  })();
+
+  window.addEventListener('resize', () => {
+    if (!els.editor.hidden) renderCodeHighlight();
+  });
+})();
+</script>
+</body>
+</html>
