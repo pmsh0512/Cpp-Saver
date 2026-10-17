@@ -355,8 +355,22 @@
     if (!confirm('确定要退出登录吗？\n（您的本地数据会自动保留，下次登录仍可同步）')) return;
     
     clearTimeout(pushTimer);
-    await sb.auth.signOut();
+    
+    // 1. 不管网络成不成功，强制在前端立刻清空登录状态，让界面秒响应
+    setUser(null);
     toast('已安全退出登录');
+
+    // 2. 强制清理本地缓存中可能残留的 Supabase Token（防止刷新后依然处于登录态）
+    try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (e) {}
+
+    // 3. 在后台静默通知服务器注销（即使失败也不影响本地已退出的状态）
+    sb.auth.signOut().catch(e => console.warn('远端注销异常（网络波动）:', e));
   }
 
   async function computeShortId(str) {
