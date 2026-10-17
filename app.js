@@ -259,6 +259,22 @@
   let groupPicker = null, editingGroupId = undefined, pendingParentId = null;
   let pushTimer = null, pushing = false, pendingPush = false;
 
+  // 提示词定义
+  const MSG_DOWNLOAD = [
+    '正在同服务器建立链接…',
+    '正在验证链接…',
+    '正在获取数据…',
+    '正在验证用户凭证…',
+    '正在下载数据…'
+  ];
+  const MSG_UPLOAD = [
+    '正在同服务器建立链接…',
+    '正在整理数据…',
+    '正在计算链接…',
+    '正在验证用户凭证…',
+    '正在上传数据…'
+  ];
+
   function current() { return templates.find((t) => t.id === currentId) || null; }
 
   /* =========================================================
@@ -307,12 +323,7 @@
     let success = false, lastError = null;
 
     for (let attempt = 1; attempt <= 5; attempt++) {
-      if (attempt === 1) hint.textContent = '正在同服务器建立链接…';
-      else if (attempt === 2) hint.textContent = '正在获取数据…';
-      else if (attempt === 3) hint.textContent = '正在下载数据…';
-      else if (attempt === 4) hint.textContent = '正在加载数据…';
-      else if (attempt === 5) hint.textContent = '正在处理用户界面…';
-      
+      hint.textContent = MSG_UPLOAD[attempt - 1];
       try {
         if (mode === 'register') {
           const { error } = await sb.auth.signUp({ email, password: p });
@@ -354,6 +365,33 @@
     return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 10);
   }
 
+  // 保存时，严格确保代码被写入了 snippets 表，失败则抛错
+  async function syncTemplateToCloud(t) {
+    if (!CLOUD || !cloudUser) return;
+    const currentHash = await computeShortId(t.name + '\n' + (t.desc || '') + '\n' + t.code);
+    
+    // 如果哈希没变，说明内容一样，不用重复传了，直接复用
+    if (t.short_id === currentHash && t.author_name) return;
+    
+    t.short_id = currentHash;
+    t.author_name = emailToUsername(cloudUser.email);
+    
+    // 强制 upsert，必须有 UPDATE 权限
+    const { error } = await sb.from('snippets').upsert({
+      short_id: currentHash,
+      name: t.name,
+      desc_text: t.desc || '',
+      code: t.code,
+      created_by: cloudUser.id,
+      author_name: t.author_name
+    }, { onConflict: 'short_id' });
+
+    if (error) {
+      console.error('同步代码到 snippets 失败:', error);
+      throw new Error('分享链接生成失败');
+    }
+  }
+
   async function shareCurrent() {
     const t = current();
     if (!t) return;
@@ -364,38 +402,22 @@
 
     const btn = $('#btn-share'); const oldText = btn.textContent;
     btn.disabled = true; btn.style.opacity = '0.7';
-    
-    const shortId = await computeShortId(t.name + '\n' + (t.desc || '') + '\n' + t.code);
-    let success = false, lastError = null;
+    btn.textContent = MSG_UPLOAD[0];
 
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      if (attempt === 1) btn.textContent = '☁ 正在同服务器建立链接…';
-      else if (attempt === 2) btn.textContent = '☁ 正在整理数据…';
-      else if (attempt === 3) btn.textContent = '☁ 正在验证用户凭证…';
-      else if (attempt === 4) btn.textContent = '☁ 正在获取链接…';
-      else if (attempt === 5) btn.textContent = '☁ 正在上传数据…';
-      
-      try {
-        const { error } = await sb.from('snippets').insert({
-          short_id: shortId, name: t.name, desc_text: t.desc || '', code: t.code, created_by: cloudUser.id
-        });
-        if (error && error.code !== '23505') throw error;
-        success = true; lastError = null; break; 
-      } catch (err) {
-        lastError = err;
-        if (attempt < 5) await new Promise(r => setTimeout(r, 1000));
-      }
+    try {
+      await syncTemplateToCloud(t);
+      showShareResult(t.short_id, true);
+    } catch (e) {
+      toast('分享失败，请检查网络');
+    } finally {
+      btn.disabled = false; btn.style.opacity = ''; btn.textContent = oldText;
     }
-
-    btn.disabled = false; btn.style.opacity = ''; btn.textContent = oldText;
-    if (success) { showShareResult(shortId, true); } 
-    else { toast('分享失败：网络异常，请稍后再试'); console.error('分享底层错误:', lastError); }
   }
 
   function showShareResult(shortId, existed) {
     const url = location.origin + location.pathname + '#s=' + shortId;
     $('#share-id').value = shortId; $('#share-url').value = url;
-    $('#share-tip').textContent = existed ? '这份代码此前已分享过，编号相同（内容哈希天然去重）。' : '把编号或链接发给别人，他们点「🔗 打开分享」即可导入。';
+    $('#share-tip').textContent = existed ? '您的模板在保存时已自动生成链接，相同内容天然去重。' : '把编号或链接发给别人，他们点「🔗 打开分享」即可导入。';
     $('#share-modal').hidden = false;
   }
 
@@ -406,16 +428,9 @@
 
     let data = null, lastError = null;
     for (let attempt = 1; attempt <= 5; attempt++) {
-      if (!silent) {
-        if (attempt === 1) toast('正在同服务器建立链接…', 2000);
-        else if (attempt === 2) toast('正在获取数据…', 2000);
-        else if (attempt === 3) toast('正在下载数据…', 2000);
-        else if (attempt === 4) toast('正在加载数据…', 2000);
-        else if (attempt === 5) toast('正在处理用户界面…', 2000);
-      }
-      
+      if (!silent) toast(MSG_DOWNLOAD[attempt - 1], 2000);
       try {
-        const res = await sb.from('snippets').select('short_id,name,desc_text,code').eq('short_id', id).maybeSingle();
+        const res = await sb.from('snippets').select('short_id,name,desc_text,code,author_name').eq('short_id', id).maybeSingle();
         if (res.error) throw res.error;
         data = res.data; break;
       } catch (e) {
@@ -427,7 +442,15 @@
     if (lastError) { toast('获取失败：网络异常'); return; }
     if (!data) { if (!silent) toast('未找到编号 ' + id); return; }
 
-    const t = { id: uid(), name: uniqueName(data.name || ('分享 ' + id)), desc: data.desc_text || '', code: data.code || '', updated: Date.now() };
+    const t = { 
+      id: uid(), 
+      name: uniqueName(data.name || ('分享 ' + id)), 
+      desc: data.desc_text || '', 
+      code: data.code || '', 
+      updated: Date.now(),
+      short_id: data.short_id,
+      author_name: data.author_name || '未知'
+    };
     templates.unshift(t); persist(); renderTree(); viewTemplate(t.id);
     if (!silent) toast('已成功导入分享模板');
   }
@@ -438,25 +461,31 @@
     pushTimer = setTimeout(() => pushCloud(true), 1500);
   }
 
+  // 修复核心：先确保 snippets 表里的数据全部写入成功，再写 user_libs
   async function pushCloud(silent) {
     if (!CLOUD || !cloudUser) return;
     if (pushing) { pendingPush = true; return; }
     pushing = true;
+    
     let success = false, lastError = null;
 
     for (let attempt = 1; attempt <= 5; attempt++) {
-      if (!silent) {
-        if (attempt === 1) toast('正在同服务器建立链接…', 2000);
-        else if (attempt === 2) toast('正在整理数据…', 2000);
-        else if (attempt === 3) toast('正在计算链接…', 2000);
-        else if (attempt === 4) toast('正在验证用户凭证…', 2000);
-        else if (attempt === 5) toast('正在上传数据…', 2000);
-      }
-      
+      if (!silent) toast(MSG_UPLOAD[attempt - 1], 2000);
       try {
+        // 1. 强制并发生成/检查所有代码是否都在 snippets 表里
+        await Promise.all(templates.map(t => syncTemplateToCloud(t)));
+        
+        // 2. 组装轻量数据
+        const template_ids = templates.map(t => t.short_id).filter(Boolean);
+        const dataToUpload = { template_ids, groups };
+
+        // 3. 保存到 user_libs（这是缓存映射，作为本地库的索引）
         const { error } = await sb.from('user_libs').upsert({
-          user_id: cloudUser.id, data: { templates, groups }, updated_at: new Date().toISOString()
+          user_id: cloudUser.id, 
+          data: dataToUpload, 
+          updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' });
+        
         if (error) throw error;
         success = true; break;
       } catch (e) {
@@ -471,24 +500,18 @@
     if (pendingPush) { pendingPush = false; scheduleCloudPush(); }
   }
 
+  // 下载时，通过 user_libs 的 ids 去拉取 snippets
   async function pullCloud(silent) {
     if (!CLOUD) { toast('云端未配置'); return false; }
     if (!cloudUser) { toast('请先登录'); return false; }
 
-    let data = null, lastError = null;
+    let userLib = null, lastError = null;
     for (let attempt = 1; attempt <= 5; attempt++) {
-      if (!silent) {
-        if (attempt === 1) toast('正在同服务器建立链接…', 2000);
-        else if (attempt === 2) toast('正在获取数据…', 2000);
-        else if (attempt === 3) toast('正在下载数据…', 2000);
-        else if (attempt === 4) toast('正在加载数据…', 2000);
-        else if (attempt === 5) toast('正在处理用户界面…', 2000);
-      }
-      
+      if (!silent) toast(MSG_DOWNLOAD[attempt - 1], 2000);
       try {
         const res = await sb.from('user_libs').select('data,updated_at').eq('user_id', cloudUser.id).maybeSingle();
         if (res.error) throw res.error;
-        data = res.data; lastError = null; break;
+        userLib = res.data; lastError = null; break;
       } catch (e) {
         lastError = e;
         if (attempt < 5) await new Promise(r => setTimeout(r, 1000));
@@ -496,11 +519,49 @@
     }
 
     if (lastError) { toast('下载失败，网络异常'); return false; }
-    if (!data || !data.data || !Array.isArray(data.data.templates)) { if (!silent) toast('云端还没有数据'); return false; }
+    if (!userLib || !userLib.data) { if (!silent) toast('云端还没有数据'); return false; }
 
-    const d = data.data;
-    templates = normalizeTemplates(d.templates);
-    groups = Array.isArray(d.groups) ? normalizeGroups(d.groups) : [];
+    const { template_ids, groups: cloudGroups } = userLib.data;
+    groups = Array.isArray(cloudGroups) ? normalizeGroups(cloudGroups) : [];
+    
+    if (!template_ids || !template_ids.length) {
+      templates = [];
+      try { localStorage.setItem(KEY, JSON.stringify({ templates, groups })); } catch (e) {}
+      currentId = null; renderTree(); showEmpty();
+      if (!silent) toast('已从云端下载完毕');
+      return true;
+    }
+
+    let snippetsData = null, snippetError = null;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      if (!silent) toast(MSG_DOWNLOAD[attempt - 1], 2000);
+      try {
+        const res = await sb.from('snippets').select('short_id,name,desc_text,code,author_name').in('short_id', template_ids);
+        if (res.error) throw res.error;
+        snippetsData = res.data; snippetError = null; break;
+      } catch (e) {
+        snippetError = e;
+        if (attempt < 5) await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+
+    if (snippetError) { toast('获取模板失败，网络异常'); return false; }
+
+    const map = new Map(snippetsData.map(d => [d.short_id, d]));
+    templates = template_ids.map(id => {
+      const d = map.get(id);
+      if (!d) return null;
+      return {
+        id: uid(),
+        short_id: d.short_id,
+        name: d.name,
+        desc: d.desc_text,
+        code: d.code,
+        author_name: d.author_name,
+        updated: Date.now()
+      };
+    }).filter(Boolean);
+
     try { localStorage.setItem(KEY, JSON.stringify({ templates, groups })); } catch (e) {}
     currentId = templates[0] ? templates[0].id : null;
     renderTree();
@@ -530,7 +591,15 @@
   }
   function normalizeTemplates(arr) {
     return arr.filter((t) => t && typeof t === 'object').map((t) => {
-      const item = { id: t.id || uid(), name: t.name || t.title || '未命名', desc: typeof t.desc === 'string' ? t.desc : '', code: typeof t.code === 'string' ? t.code : (extractFirstCodeBlock(t.content) || ''), updated: t.updated || Date.now() };
+      const item = { 
+        id: t.id || uid(), 
+        name: t.name || t.title || '未命名', 
+        desc: typeof t.desc === 'string' ? t.desc : '', 
+        code: typeof t.code === 'string' ? t.code : (extractFirstCodeBlock(t.content) || ''), 
+        updated: t.updated || Date.now(),
+        short_id: t.short_id || null,
+        author_name: t.author_name || null
+      };
       if ('manualGroupId' in t) item.manualGroupId = t.manualGroupId;
       return item;
     });
@@ -692,7 +761,7 @@
     const t = current();
     if (t) {
       const v = els.viewTitleInput.value.trim() || '未命名';
-      if (v !== t.name) { t.name = v; t.updated = Date.now(); persist(); renderTree(); }
+      if (v !== t.name) { t.name = v; t.updated = Date.now(); persist(); renderTree(); syncTemplateToCloud(t); }
       els.viewTitle.textContent = t.name; els.viewTitle.title = t.name;
     }
     els.viewTitle.hidden = false; els.viewTitleInput.hidden = true;
@@ -707,7 +776,7 @@
     const t = current();
     if (save && t) {
       const v = els.viewTitleInput.value.trim() || '未命名';
-      if (v !== t.name) { t.name = v; t.updated = Date.now(); persist(); renderTree(); toast('名称已更新'); }
+      if (v !== t.name) { t.name = v; t.updated = Date.now(); persist(); renderTree(); syncTemplateToCloud(t); toast('名称已更新'); }
       els.viewTitle.textContent = t.name; els.viewTitle.title = t.name;
     } else if (t) { els.viewTitle.textContent = t.name; }
     els.viewTitle.hidden = false; els.viewTitleInput.hidden = true;
@@ -725,7 +794,16 @@
     commitTitleIfEditing();
     const t = templates.find((x) => x.id === id); if (!t) return;
     currentId = id; els.viewTitle.textContent = t.name; els.viewTitle.title = t.name; els.viewTitle.hidden = false; els.viewTitleInput.hidden = true;
-    const lines = t.code ? t.code.split('\n').length : 0; els.viewMeta.textContent = lines + ' 行 · ' + formatSize(t.code.length);
+    
+    const lines = t.code ? t.code.split('\n').length : 0; 
+    let metaText = lines + ' 行 · ' + formatSize(t.code.length);
+    if (t.author_name && cloudUser && t.author_name !== emailToUsername(cloudUser.email)) {
+      metaText += ' · 作者: ' + t.author_name;
+    } else if (t.author_name && !cloudUser) {
+      metaText += ' · 作者: ' + t.author_name;
+    }
+    els.viewMeta.textContent = metaText;
+    
     renderViewerBody(t); els.contentScroll.scrollTop = 0; showViewer(); renderTree();
   }
 
@@ -747,7 +825,7 @@
   function saveDescEditor() {
     if (!descEditingId) { cancelDescEditor(); return; }
     const t = templates.find((x) => x.id === descEditingId);
-    if (t) { t.desc = els.descMdInput.value; t.updated = Date.now(); }
+    if (t) { t.desc = els.descMdInput.value; t.updated = Date.now(); syncTemplateToCloud(t); }
     descEditingId = null; persist(); viewTemplate(currentId); toast('简介已保存');
   }
   function cancelDescEditor() {
@@ -831,7 +909,7 @@
   function saveCodeEditor() {
     if (!editingId) { cancelCodeEditor(); return; }
     const t = templates.find((x) => x.id === editingId);
-    if (t) { t.code = els.editCode.value; t.updated = Date.now(); }
+    if (t) { t.code = els.editCode.value; t.updated = Date.now(); syncTemplateToCloud(t); }
     editingId = null; persist(); viewTemplate(currentId); toast('代码已保存');
   }
   function cancelCodeEditor() {
@@ -919,6 +997,7 @@
         const text = await file.text(); const base = file.name.replace(/\.[^./\\]+$/, '') || file.name;
         const t = { id: uid(), name: uniqueName(base), desc: '', code: text, updated: Date.now() };
         templates.unshift(t); newIds.push(t.id); okCount++;
+        syncTemplateToCloud(t);
       } catch (e) { console.error('导入失败：', file.name, e); }
     }
     if (!okCount) { toast('导入失败'); return; }
