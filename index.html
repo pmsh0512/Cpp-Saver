@@ -4,39 +4,32 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>模板库</title>
-
-<!-- 已修改为本地引用，彻底解决镜像超时问题 -->
+<!-- 引用本地 SDK -->
 <script src="./supabase.js"></script>
-
-<!-- 引入外部样式 -->
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 <div class="app">
   <aside class="sidebar">
-    <div class="side-head"><h1>  模板库</h1></div>
-
-    <!-- 账号栏 -->
+    <div class="side-head"><h1>模板库</h1></div>
     <div class="account-bar">
       <span class="acc-status" id="acc-status">未登录</span>
       <button id="btn-login" class="btn" type="button">登录</button>
       <button id="btn-logout" class="btn" type="button" hidden>退出</button>
     </div>
-
-    <div class="side-actions">
-      <button id="btn-new" class="btn primary" type="button"> 新建</button>
-      <button id="btn-import" class="btn" type="button"> 导入</button>
-      <button id="btn-export" class="btn" type="button"> 导出</button>
-      <button id="btn-group" class="btn" type="button"> 分组</button>
-      <button id="btn-open-share" class="btn" type="button"> 打开分享</button>
-      <button id="btn-sync" class="btn" type="button"> 同步</button>
-      <input id="file-input" type="file" multiple hidden
-             accept=".cpp,.cc,.cxx,.c,.h,.hpp,.hxx,.ipp,.ino,.cp,text/plain">
+    <div class="side-actions" style="grid-template-columns: repeat(3, 1fr);">
+      <button id="btn-new" class="btn primary" type="button">新建</button>
+      <button id="btn-import" class="btn" type="button">导入</button>
+      <button id="btn-export" class="btn" type="button">导出</button>
+      <button id="btn-group" class="btn" type="button">分组</button>
+      <button id="btn-explore" class="btn" type="button">广场</button>
+      <button id="btn-chat" class="btn" type="button" hidden>聊天</button>
+      <button id="btn-open-share" class="btn" type="button">打开分享</button>
+      <button id="btn-sync" class="btn" type="button">同步</button>
+      <input id="file-input" type="file" multiple hidden accept=".cpp,.cc,.cxx,.c,.h,.hpp,.hxx,.ipp,.ino,.cp,.md,.txt,text/plain">
     </div>
-
     <input id="search" class="search" placeholder="搜索名称、简介或代码…" autocomplete="off">
     <div id="list" class="list"></div>
-
     <div class="side-foot">
       <button id="btn-settings" class="settings-btn" type="button" title="设置">⚙ 设置</button>
       <span id="count"></span>
@@ -64,45 +57,41 @@
 
   <main class="main">
     <div id="empty" class="empty">
-      ← 选择左侧模板，或点击「新建」/「 导入」<br>
-      <span style="color:#3a414d">「分享」生成哈希编号 · 「 打开分享」凭编号获取他人代码</span>
+      ← 选择左侧模板，或点击「新建」/「导入」<br>
+      <span style="color:#3a414d">支持多语言代码高亮。自动保存至云端。</span>
     </div>
 
     <div id="viewer" class="viewer" hidden>
       <div class="viewer-head">
         <div class="viewer-title-wrap">
           <h2 id="view-title">—</h2>
-          <input id="view-title-input" class="view-title-input" hidden
-                 autocomplete="off" spellcheck="false">
+          <input id="view-title-input" class="view-title-input" hidden autocomplete="off" spellcheck="false">
           <div class="viewer-meta" id="view-meta"></div>
         </div>
         <div class="viewer-actions">
-          <button id="btn-share" class="btn" type="button"> 分享</button>
-          <button id="btn-desc" class="btn" type="button"> 编辑简介</button>
-          <button id="btn-edit" class="btn" type="button"> 编辑代码</button>
-          <button id="btn-copy-md" class="btn" type="button"> 复制 Markdown</button>
-          <button id="btn-copy" class="btn" type="button"> 复制代码</button>
-          <button id="btn-del" class="btn danger" type="button"> 删除</button>
+          <button id="btn-toggle-public" class="btn" type="button">🌐 公开</button>
+          <button id="btn-share" class="btn" type="button">分享</button>
+          <button id="btn-desc" class="btn" type="button">编辑内容</button>
+          <button id="btn-copy-md" class="btn" type="button">复制 Markdown</button>
+          <button id="btn-del" class="btn danger" type="button">删除</button>
         </div>
       </div>
-
       <div class="content-scroll" id="content-scroll">
         <div id="desc-view" class="md-body"></div>
-        <div id="code-embed"></div>
       </div>
     </div>
 
     <div id="desc-editor" class="editor" hidden>
       <div class="editor-head">
-        <div class="editor-label">编辑简介 <b id="desc-edit-name">—</b></div>
+        <div class="editor-label">编辑内容 <b id="desc-edit-name">—</b></div>
         <div class="editor-actions">
-          <button id="btn-desc-save" class="btn primary" type="button"> 保存简介</button>
+          <button id="btn-desc-save" class="btn primary" type="button">💾 保存</button>
           <button id="btn-desc-cancel" class="btn" type="button">取消</button>
         </div>
       </div>
       <div class="editor-panes">
         <textarea id="desc-md-input" class="edit-textarea" spellcheck="false"
-                  placeholder="# 标题&#10;&#10;支持**粗体**、- 列表、> 引用、表格、```代码块、``cpp 代码块``…&#10;&#10;右侧实时预览"></textarea>
+                  placeholder="# 标题&#10;&#10;直接粘贴代码或写 Markdown。&#10;支持 ``cpp ... `` 或 ```cpp ... ```"></textarea>
         <div class="editor-preview">
           <div class="editor-preview-head">
             <span><span class="preview-dot"></span>实时预览</span>
@@ -114,156 +103,200 @@
         </div>
       </div>
     </div>
-
-    <div id="editor" class="editor" hidden>
-      <div class="editor-head">
-        <div class="editor-label">编辑代码 <b id="edit-name">—</b></div>
-        <div class="editor-actions">
-          <button id="btn-save" class="btn primary" type="button"> 保存代码</button>
-          <button id="btn-cancel" class="btn" type="button">取消</button>
-        </div>
-      </div>
-      <div class="code-editor-wrap">
-        <div class="line-numbers" id="line-numbers">1</div>
-        <div class="code-editor">
-          <pre class="hl-layer" id="hl-layer" aria-hidden="true"><code id="hl-code"></code></pre>
-          <textarea id="edit-code" class="input-layer" spellcheck="false" wrap="off"
-                    autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
-        </div>
-      </div>
-    </div>
   </main>
 </div>
 
-<!-- ==================== 导出模态框 ==================== -->
+<!-- 导出 -->
 <div id="export-modal" class="modal" hidden>
   <div class="modal-box">
-    <div class="modal-head">
-      <h3>批量导出为 .cpp</h3>
-      <button class="modal-close" type="button" id="modal-close" title="关闭">×</button>
-    </div>
+    <div class="modal-head"><h3>批量导出</h3><button class="modal-close" id="modal-close">×</button></div>
     <div class="modal-toolbar">
       <label class="chk-all"><input type="checkbox" id="chk-all"> 全选</label>
       <span class="sel-info">已选 <b id="sel-count">0</b> / <span id="total-count">0</span></span>
     </div>
     <ul id="export-list" class="export-list"></ul>
-    <div class="modal-tip">
-      每个模板导出为一个 <code>.cpp</code> 文件，简介会以 <code>/* ... */</code> 注释放在代码开头。
-    </div>
     <div class="modal-foot">
-      <button class="btn" type="button" id="export-cancel">取消</button>
-      <button class="btn primary" type="button" id="export-confirm">导出所选</button>
+      <button class="btn" id="export-cancel">取消</button>
+      <button class="btn primary" id="export-confirm">导出</button>
     </div>
   </div>
 </div>
 
-<!-- ==================== 分组编辑模态框 ==================== -->
+<!-- 分组 -->
 <div id="group-modal" class="modal" hidden>
   <div class="modal-box" style="max-width:440px">
-    <div class="modal-head">
-      <h3 id="group-modal-title">编辑分组</h3>
-      <button class="modal-close" type="button" id="group-modal-close" title="关闭">×</button>
-    </div>
+    <div class="modal-head"><h3 id="group-modal-title">编辑分组</h3><button class="modal-close" id="group-modal-close">×</button></div>
     <div class="group-form">
-      <label for="group-name-input">分组名称</label>
-      <input id="group-name-input" placeholder="如：图论" autocomplete="off" spellcheck="false">
-      <label for="group-kw-input">自动分组关键词（可选）</label>
-      <input id="group-kw-input" placeholder="如：dijkstra, 最短路, 图论（逗号分隔）" autocomplete="off" spellcheck="false">
-      <div class="group-hint">名称或简介包含任一关键词的模板会自动归入本组；手动移动的模板优先于自动匹配。</div>
+      <label>分组名称</label>
+      <input id="group-name-input" placeholder="如：图论" autocomplete="off">
+      <label>自动分组关键词（可选）</label>
+      <input id="group-kw-input" placeholder="逗号分隔，如：dijkstra, 最短路" autocomplete="off">
     </div>
     <div class="modal-foot">
-      <button class="btn" type="button" id="group-modal-cancel">取消</button>
-      <button class="btn primary" type="button" id="group-modal-save">保存</button>
+      <button class="btn" id="group-modal-cancel">取消</button>
+      <button class="btn primary" id="group-modal-save">保存</button>
     </div>
   </div>
 </div>
 
-<!-- ==================== 登录 / 注册 ==================== -->
+<!-- 个人中心 -->
+<div id="profile-modal" class="modal" hidden>
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-head"><h3>个人中心</h3><button class="modal-close" id="profile-close">×</button></div>
+    <div class="group-form">
+      <div class="profile-info">
+        <div class="p-row"><span class="p-label">当前账号</span><span class="p-val" id="pf-email">—</span></div>
+        <div class="p-row"><span class="p-label">账号等级</span><span class="p-val" id="pf-role">—</span></div>
+        <div class="p-row"><span class="p-label">用户 UID</span><span class="p-val" id="pf-uid" style="font-size:11px;color:#7d8590">—</span></div>
+      </div>
+      <button id="btn-admin-panel" class="btn primary" style="margin-bottom:12px" hidden>👑 进入管理面板</button>
+      <label>修改用户名</label>
+      <div style="display:flex; gap:8px; margin-bottom:8px">
+        <input id="pf-username" placeholder="新用户名" style="flex:1">
+        <button id="btn-save-username" class="btn">保存</button>
+      </div>
+      <div style="margin: 16px 0 8px; border-top: 1px solid #262b36"></div>
+      <label>修改密码</label>
+      <input id="pf-old-pw" type="password" placeholder="原密码">
+      <input id="pf-new-pw" type="password" placeholder="新密码（至少 6 位）">
+      <input id="pf-confirm-pw" type="password" placeholder="重复新密码">
+      <button id="btn-save-pw" class="btn" style="margin-top:4px">确认修改密码</button>
+    </div>
+  </div>
+</div>
+
+<!-- 登录注册 -->
 <div id="auth-modal" class="modal" hidden>
   <div class="modal-box" style="max-width:380px">
-    <div class="modal-head">
-      <h3>登录 / 注册</h3>
-      <button class="modal-close" type="button" id="auth-close" title="关闭">×</button>
-    </div>
+    <div class="modal-head"><h3>登录 / 注册</h3><button class="modal-close" id="auth-close">×</button></div>
     <div class="group-form">
-      <label for="auth-user">账号</label>
-      <input id="auth-user" placeholder="2-32 位字母、数字、_ 或 -"
-             autocomplete="username" spellcheck="false">
-      <label for="auth-pass">密码</label>
-      <input id="auth-pass" type="password" placeholder="至少 6 位"
-             autocomplete="current-password">
-      <div class="group-hint" id="auth-hint">首次使用请先点「注册」，注册成功会自动登录。</div>
+      <label>账号</label><input id="auth-user" placeholder="2-32 位字母数字下划线" autocomplete="username">
+      <label>密码</label><input id="auth-pass" type="password" placeholder="至少 6 位" autocomplete="current-password">
+      <div class="group-hint" id="auth-hint">首次使用请先点「注册」。</div>
     </div>
     <div class="modal-foot">
-      <button class="btn" type="button" id="auth-register">注册</button>
-      <button class="btn primary" type="button" id="auth-login-btn">登录</button>
+      <button class="btn" id="auth-register">注册</button>
+      <button class="btn primary" id="auth-login-btn">登录</button>
     </div>
   </div>
 </div>
 
-<!-- ==================== 分享结果 ==================== -->
+<!-- 分享 -->
 <div id="share-modal" class="modal" hidden>
   <div class="modal-box" style="max-width:480px">
-    <div class="modal-head">
-      <h3>已分享</h3>
-      <button class="modal-close" type="button" id="share-close" title="关闭">×</button>
-    </div>
+    <div class="modal-head"><h3>已分享</h3><button class="modal-close" id="share-close">×</button></div>
     <div class="group-form">
-      <label>分享编号</label>
-      <input id="share-id" readonly>
-      <label>分享链接</label>
-      <input id="share-url" readonly>
+      <label>分享编号</label><input id="share-id" readonly>
+      <label>分享链接</label><input id="share-url" readonly>
       <div class="group-hint" id="share-tip"></div>
     </div>
     <div class="modal-foot">
-      <button class="btn" type="button" id="share-copy-id">复制编号</button>
-      <button class="btn primary" type="button" id="share-copy-url">复制链接</button>
+      <button class="btn" id="share-copy-id">复制编号</button>
+      <button class="btn primary" id="share-copy-url">复制链接</button>
     </div>
   </div>
 </div>
 
-<!-- ==================== 打开分享 ==================== -->
+<!-- 打开分享 -->
 <div id="open-modal" class="modal" hidden>
   <div class="modal-box" style="max-width:480px">
-    <div class="modal-head">
-      <h3>🔗 打开分享</h3>
-      <button class="modal-close" type="button" id="open-close" title="关闭">×</button>
-    </div>
+    <div class="modal-head"><h3>打开分享</h3><button class="modal-close" id="open-close">×</button></div>
     <div class="group-form">
-      <label for="open-id">分享编号</label>
-      <input id="open-id" placeholder="如 a1b2c3d4e5" autocomplete="off" spellcheck="false">
-      <div class="group-hint">粘贴别人分享的编号，或直接打开带 <code>#s=编号</code> 的链接，即可把该模板导入本地库。</div>
+      <label>分享编号</label><input id="open-id" placeholder="粘贴别人的编号" autocomplete="off">
     </div>
     <div class="modal-foot">
-      <button class="btn" type="button" id="open-cancel">取消</button>
-      <button class="btn primary" type="button" id="open-confirm">获取</button>
+      <button class="btn" id="open-cancel">取消</button>
+      <button class="btn primary" id="open-confirm">获取</button>
     </div>
   </div>
 </div>
 
-<!-- ==================== 云端同步 ==================== -->
+<!-- 同步 -->
 <div id="sync-modal" class="modal" hidden>
   <div class="modal-box" style="max-width:440px">
-    <div class="modal-head">
-      <h3> 云端同步</h3>
-      <button class="modal-close" type="button" id="sync-close" title="关闭">×</button>
-    </div>
+    <div class="modal-head"><h3>云端同步</h3><button class="modal-close" id="sync-close">×</button></div>
     <div class="group-form">
       <div class="group-hint" id="sync-info">—</div>
-      <div class="group-hint" style="color:#7d8590">
-        登录后，本地改动会自动上传到云端（约 1.5 秒防抖）。在新设备登录后点「从云端下载」即可恢复。
-      </div>
     </div>
     <div class="modal-foot">
-      <button class="btn" type="button" id="sync-pull"> 从云端下载</button>
-      <button class="btn primary" type="button" id="sync-push"> 上传本地</button>
+      <button class="btn" id="sync-pull">从云端下载</button>
+      <button class="btn primary" id="sync-push">上传本地</button>
+    </div>
+  </div>
+</div>
+
+<!-- 公共广场 -->
+<div id="explore-modal" class="modal" hidden>
+  <div class="modal-box" style="max-width:600px;height:80vh;">
+    <div class="modal-head"><h3>公共模板广场</h3><button class="modal-close" id="explore-close">×</button></div>
+    <div style="display:flex;gap:10px;padding:12px;border-bottom:1px solid #262b36">
+      <select id="explore-type" class="btn" style="padding:4px 8px; background:#0f1218; outline:none;">
+        <option value="keyword">按关键字</option>
+        <option value="user">按用户筛选</option>
+      </select>
+      <input id="explore-search" class="search" style="margin:0;flex:1" placeholder="输入搜索内容...">
+      <button id="explore-search-btn" class="btn primary">搜索</button>
+    </div>
+    <ul id="explore-list" class="admin-user-list" style="flex:1; padding: 10px; overflow-y:auto;"></ul>
+    <div class="modal-foot" style="justify-content:space-between; display:flex; align-items:center;">
+      <button id="explore-prev" class="btn" disabled>← 上一页</button>
+      <span id="explore-page-info" style="font-size:12px;color:#7d8590">第 1 页</span>
+      <button id="explore-next" class="btn" disabled>下一页 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- 聊天室 -->
+<div id="chat-modal" class="modal" hidden>
+  <div class="modal-box" style="max-width:700px;height:80vh;display:flex;flex-direction:row;">
+    <!-- 左侧栏 -->
+    <div style="width:220px;border-right:1px solid #262b36;display:flex;flex-direction:column;background:#13161d;">
+      <div style="padding:12px;font-size:12px;color:#7d8590;border-bottom:1px solid #262b36;font-weight:bold;">消息列表</div>
+      
+      <!-- 增加：搜索用户输入框 -->
+      <div style="padding:8px;">
+        <input id="chat-search-user" class="search" style="margin:0;width:100%;font-size:12px;padding:4px 8px;" placeholder="搜 ID/用户名 发起私聊">
+      </div>
+      
+      <ul id="chat-contacts" class="admin-user-list" style="flex:1; overflow-y:auto;">
+        <li class="admin-user-item" data-uid="public"><span class="u-name">🌐 公共聊天室</span></li>
+      </ul>
+    </div>
+    <!-- 右侧聊天区 -->
+    <div style="flex:1;display:flex;flex-direction:column;background:#0f1115;">
+      <div class="modal-head" style="border-bottom:1px solid #262b36;">
+        <h3 id="chat-title">公共聊天室</h3>
+        <button class="modal-close" id="chat-close">×</button>
+      </div>
+      <div class="chat-container" style="flex:1;overflow-y:auto;">
+        <ul id="chat-list" class="chat-list"></ul>
+      </div>
+      <div class="chat-input-area">
+        <input id="chat-input" placeholder="说点什么..." autocomplete="off">
+        <button id="chat-send" class="btn primary" type="button">发送</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 管理面板 -->
+<div id="admin-modal" class="modal" hidden>
+  <div class="modal-box" style="max-width:720px; height: 80vh;">
+    <div class="modal-head"><h3>用户模板审查</h3><button class="modal-close" id="admin-close">×</button></div>
+    <div style="display:flex; flex:1; min-height:0; overflow:hidden;">
+      <div style="width:220px; border-right:1px solid #262b36; display:flex; flex-direction:column;">
+        <div style="padding:10px 12px; font-size:11px; color:#7d8590; border-bottom:1px solid #262b36; background:#161a22;">用户列表</div>
+        <ul id="admin-user-list" class="admin-user-list"></ul>
+      </div>
+      <div class="admin-viewer">
+        <div class="admin-viewer-head" id="admin-viewer-head">请从左侧选择用户以查看其模板</div>
+        <ul id="admin-template-list" class="admin-user-list" style="max-height:none;"></ul>
+      </div>
     </div>
   </div>
 </div>
 
 <div id="toast" class="toast"></div>
-
-<!-- 引入外部 JavaScript -->
 <script src="./app.js"></script>
 </body>
 </html>

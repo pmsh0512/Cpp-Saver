@@ -5,20 +5,20 @@
    *  配置与常量
    * ========================================================= */
   const SUPABASE_URL      = 'https://cgsgoomfeamjxmawbuxn.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_CYU5aF2ebFNG7-ufLKuinA_rBWD9dEQ'.trim();
+  const SUPABASE_ANON_KEY = 'sb_publishable_oC2B_fBatS0f2dVAgcxoGw_LnXRH8N1'.trim();
   const EMAIL_DOMAIN = 'cpplib.local';
   const CLOUD = !!(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase);
+  
   let sb = null;
   let cloudUser = null;
+  let userProfile = null;
 
-  if (CLOUD) {
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
+  if (CLOUD) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const $ = (s) => document.querySelector(s);
-  const KEY = 'cpp-templates-v13';
+  const KEY = 'cpp-templates-v15'; 
   const SETTINGS_KEY = 'cpp-templates-settings-v1';
-  const OLD_KEYS = ['cpp-templates-v12','cpp-templates-v11','cpp-templates-v10','cpp-templates-v9','cpp-templates-v8','cpp-templates-v7','cpp-templates-v6','cpp-templates-v5','cpp-templates-v4','cpp-templates-v3','cpp-templates-v2','code-templates-v1'];
+  const CHAT_READ_KEY = 'cpp-templates-chat-read';
   const MAX_HIGHLIGHT = 400 * 1024;
   const INDENT_UNIT = '    ';
 
@@ -30,456 +30,246 @@
     mono:   'ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace'
   };
 
+  const MSG_DOWNLOAD = ['正在同服务器建立链接…','正在验证链接…','正在获取数据…','正在验证用户凭证…','正在下载数据…'];
+  const MSG_UPLOAD = ['正在同服务器建立链接…','正在整理数据…','正在计算链接…','正在验证用户凭证…','正在上传数据…'];
+
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-  function esc(s) {
-    return String(s).replace(/[&<>"']/g, (c) => (
-      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-    ));
-  }
-  function formatSize(n) {
-    if (n < 1024) return n + ' B';
-    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-    return (n / 1024 / 1024).toFixed(2) + ' MB';
-  }
-  function sanitizeFilename(name) {
-    let s = String(name || 'template').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim();
-    s = s.replace(/\s+/g, ' ');
-    return s || 'template';
-  }
-  function bindTabIndent(ta) {
-    ta.addEventListener('keydown', (e) => {
-      if (e.key !== 'Tab') return;
-      e.preventDefault();
-      const s = ta.selectionStart, en = ta.selectionEnd;
-      ta.value = ta.value.slice(0, s) + INDENT_UNIT + ta.value.slice(en);
-      ta.selectionStart = ta.selectionEnd = s + INDENT_UNIT.length;
-      ta.dispatchEvent(new Event('input'));
-    });
+  function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function formatSize(n) { if (n < 1024) return n + ' B'; if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB'; return (n / 1024 / 1024).toFixed(2) + ' MB'; }
+  function sanitizeFilename(name) { let s = String(name || 'template').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim(); return s.replace(/\s+/g, ' ') || 'template'; }
+  
+  function toast(msg, duration = 1800) {
+    const el = $('#toast'); if (!el) return;
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), duration);
   }
 
   /* =========================================================
-   *  C++ 语法高亮 & Markdown 渲染
+   *  多语言代码高亮
    * ========================================================= */
-  const CPP_KEYWORDS = new Set(('alignas alignof and and_eq asm auto bitand bitor bool break case catch char char8_t char16_t char32_t class compl concept const consteval constexpr constinit const_cast continue co_await co_return co_yield decltype default delete do double dynamic_cast else enum explicit export extern false float for friend goto if inline int long mutable namespace new noexcept not not_eq nullptr operator or or_eq private protected public register reinterpret_cast requires return short signed sizeof static static_assert static_cast struct switch template this thread_local throw true try typedef typeid typename union unsigned using virtual void volatile wchar_t while xor xor_eq').split(' '));
-  const CPP_TYPES = new Set(('std string vector map set unordered_map unordered_set multiset multimap pair queue deque stack priority_queue array bitset tuple complex size_t ptrdiff_t int8_t int16_t int32_t int64_t uint8_t uint16_t uint32_t uint64_t ll ull INF MOD eps INT_MAX INT_MIN LLONG_MAX LLONG_MIN').split(' '));
-  
-  const CPP_RE = new RegExp(
-    '(\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)' +
-    '|(^[ \\t]*#[ \\t]*[A-Za-z_]+)' +
-    '|("(?:\\\\.|[^"\\\\\\n])*"|\'(?:\\\\.|[^\'\\\\\\n])*\')' +
-    '|(\\b(?:0[xX][0-9a-fA-F]+|\\d+\\.?\\d*(?:[eE][+-]?\\d+)?)[uUlLfF]*\\b)' +
-    '|([A-Za-z_]\\w*)', 'gm'
-  );
+  const KW_CPP = new Set(('alignas alignof and and_eq asm auto bitand bitor bool break case catch char char8_t char16_t char32_t class compl concept const consteval constexpr constinit const_cast continue co_await co_return co_yield decltype default delete do double dynamic_cast else enum explicit export extern false float for friend goto if inline int long mutable namespace new noexcept not not_eq nullptr operator or or_eq private protected public register reinterpret_cast requires return short signed sizeof static static_assert static_cast struct switch template this thread_local throw true try typedef typeid typename union unsigned using virtual void volatile wchar_t while xor xor_eq').split(' '));
+  const KW_PY = new Set(('False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield print len range str int float list dict set tuple type object self').split(' '));
+  const KW_JAVA = new Set(('abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static strictfp super switch synchronized this throw throws transient try void volatile while String System out println var').split(' '));
+  const KW_GO = new Set(('break default func interface select case defer go map struct chan else goto package switch const fallthrough if range type continue for import return var nil true false int string bool byte rune float64 float32 int64 int32 uint64 uint32 make new len cap append panic recover print println fmt').split(' '));
+  const TYPES = new Set(('std string vector map set unordered_map pair queue deque stack size_t int8_t int16_t int32_t int64_t uint8_t uint16_t uint32_t uint64_t ll ull').split(' '));
 
-  function highlightCpp(code) {
+  function highlightCode(code, lang) {
     if (!code) return '';
-    let out = '', last = 0, m;
-    CPP_RE.lastIndex = 0;
-    while ((m = CPP_RE.exec(code)) !== null) {
-      if (m.index > last) out += esc(code.slice(last, m.index));
-      if (m[1])      out += '<span class="c-com">' + esc(m[1]) + '</span>';
-      else if (m[2]) out += '<span class="c-pre">' + esc(m[2]) + '</span>';
-      else if (m[3]) out += '<span class="c-str">' + esc(m[3]) + '</span>';
-      else if (m[4]) out += '<span class="c-num">' + esc(m[4]) + '</span>';
-      else {
-        const w = m[5];
-        let j = CPP_RE.lastIndex;
-        while (j < code.length && (code[j] === ' ' || code[j] === '\t')) j++;
-        if (CPP_KEYWORDS.has(w))   out += '<span class="c-kw">' + esc(w) + '</span>';
-        else if (CPP_TYPES.has(w)) out += '<span class="c-ty">' + esc(w) + '</span>';
-        else if (code[j] === '(')  out += '<span class="c-fn">' + esc(w) + '</span>';
-        else                       out += esc(w);
+    const lc = (lang || '').toLowerCase();
+    let kwSet = KW_CPP;
+    if (lc === 'python' || lc === 'py') kwSet = KW_PY;
+    else if (lc === 'java') kwSet = KW_JAVA;
+    else if (lc === 'go' || lc === 'golang') kwSet = KW_GO;
+    
+    if (lc === 'json') {
+      let out = '', last = 0, m;
+      const RE = /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g;
+      while ((m = RE.exec(code)) !== null) {
+        if (m.index > last) out += esc(code.slice(last, m.index));
+        if (/^"/.test(m[0])) {
+          if (/:$/.test(m[0])) out += '<span class="c-kw">' + esc(m[0]) + '</span>';
+          else out += '<span class="c-str">' + esc(m[0]) + '</span>';
+        } else if (/true|false|null/.test(m[0])) out += '<span class="c-kw">' + esc(m[0]) + '</span>';
+        else out += '<span class="c-num">' + esc(m[0]) + '</span>';
+        last = RE.lastIndex;
       }
-      last = CPP_RE.lastIndex;
+      return out + esc(code.slice(last));
     }
-    out += esc(code.slice(last));
-    return out;
+
+    const RE = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)|("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')|(\b(?:0[xX][0-9a-fA-F]+|\d+\.?\d*(?:[eE][+-]?\d+)?)\b)|([A-Za-z_]\w*)/g;
+    let out = '', last = 0, m;
+    while ((m = RE.exec(code)) !== null) {
+      if (m.index > last) out += esc(code.slice(last, m.index));
+      if (m[1]) out += '<span class="c-com">' + esc(m[1]) + '</span>';
+      else if (m[2]) out += '<span class="c-str">' + esc(m[2]) + '</span>';
+      else if (m[3]) out += '<span class="c-num">' + esc(m[3]) + '</span>';
+      else {
+        const w = m[4];
+        if (kwSet.has(w)) out += '<span class="c-kw">' + esc(w) + '</span>';
+        else if (TYPES.has(w)) out += '<span class="c-ty">' + esc(w) + '</span>';
+        else out += esc(w);
+      }
+      last = RE.lastIndex;
+    }
+    return out + esc(code.slice(last));
   }
 
-  const CPP_LANGS = ['cpp','c++','c','cc','cxx','h','hpp','hxx','ipp','ino','cp'];
-
   function renderCodeBlock(code, lang) {
-    const lc = (lang || '').toLowerCase();
-    const isCpp = CPP_LANGS.indexOf(lc) !== -1;
-    const body = (isCpp && code.length <= MAX_HIGHLIGHT) ? highlightCpp(code) : esc(code);
+    const body = (code.length <= MAX_HIGHLIGHT) ? highlightCode(code, lang) : esc(code);
     return '<div class="code-block"><div class="code-head"><span class="code-lang">' + esc(lang || 'text') + '</span><button class="copy-code" type="button" data-code="' + encodeURIComponent(code) + '">复制</button></div><pre class="code-body"><code>' + body + '</code></pre></div>';
   }
 
-  function renderTextBox(content, lang) {
-    const label = String(lang == null ? '' : lang).trim() || 'text';
-    const lc = label.toLowerCase();
-    const isCpp = CPP_LANGS.indexOf(lc) !== -1;
-    const body = (isCpp && content.length <= MAX_HIGHLIGHT) ? highlightCpp(content) : esc(content);
-    return '<div class="code-block text-box"><div class="code-head"><span class="code-lang">' + esc(label) + '</span><button class="copy-code" type="button" data-code="' + encodeURIComponent(content) + '">复制</button></div><pre class="code-body"><code>' + body + '</code></pre></div>';
-  }
-
-  function renderMiniCodeInline(code) {
-    const body = (code.length <= MAX_HIGHLIGHT) ? highlightCpp(code) : esc(code);
-    return '<span class="mini-code-inline"><code>' + body + '</code></span>';
-  }
-
+  /* =========================================================
+   *  完整的 Markdown 解析
+   * ========================================================= */
   function mdInline(text) {
-    const inlineBlocks = [];
-    let raw = String(text).replace(/``([^`]+)``/g, (_, p1) => {
-      inlineBlocks.push(p1);
-      return '\u0000' + (inlineBlocks.length - 1) + '\u0000';
-    });
-    let s = esc(raw);
+    let s = esc(text);
+    
+    // 1. 处理行内代码 `xxx`
     const inlineCodes = [];
     s = s.replace(/`([^`]+)`/g, (_, p1) => {
       inlineCodes.push(p1);
       return '\u0001' + (inlineCodes.length - 1) + '\u0001';
     });
+    
+    // 2. 加粗、斜体、删除线
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
     s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    
+    // 3. 超链接
     s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    
+    // 4. 还原行内代码
     s = s.replace(/\u0001(\d+)\u0001/g, (_, i) => '<code class="md-code">' + inlineCodes[Number(i)] + '</code>');
-    s = s.replace(/\u0000(\d+)\u0000/g, (_, i) => renderMiniCodeInline(inlineBlocks[Number(i)]));
+    
     return s;
   }
 
-  function splitTableRow(line) {
-    let s = line.trim();
-    if (s.startsWith('|')) s = s.slice(1);
-    if (s.endsWith('|'))   s = s.slice(0, -1);
-    return s.split('|').map((x) => x.trim());
-  }
-
-  function renderTable(headerLine, alignLine, rows) {
-    const headers = splitTableRow(headerLine);
-    const aligns = splitTableRow(alignLine).map((a) => {
-      a = a.trim();
-      const l = a.startsWith(':'), r = a.endsWith(':');
-      if (l && r) return 'center';
-      if (r) return 'right';
-      return 'left';
-    });
-    let html = '<div class="table-wrap"><table><thead><tr>';
-    headers.forEach((h, idx) => { html += '<th style="text-align:' + (aligns[idx] || 'left') + '">' + mdInline(h) + '</th>'; });
-    html += '</tr></thead><tbody>';
-    rows.forEach((row) => {
-      const cells = splitTableRow(row);
-      html += '<tr>';
-      headers.forEach((_, idx) => { html += '<td style="text-align:' + (aligns[idx] || 'left') + '">' + mdInline(cells[idx] || '') + '</td>'; });
-      html += '</tr>';
-    });
-    html += '</tbody></table></div>';
-    return html;
-  }
-
   function renderMarkdown(md) {
-    const lines = String(md == null ? '' : md).replace(/\r\n?/g, '\n').split('\n');
-    const out = [];
-    let i = 0;
+    const lines = String(md || '').replace(/\r\n?/g, '\n').split('\n');
+    const out = []; let i = 0;
     while (i < lines.length) {
       const line = lines[i];
-      const fence = line.match(/^\s*(`{3,}|~{3,})\s*(.*)$/);
+      
+      // 1. 代码块（支持 2 个及以上反引号或波浪号）
+      const fence = line.match(/^\s*(`{2,}|~{2,})\s*(.*)$/);
       if (fence) {
-        const marker = fence[1][0];
+        const marker = fence[1][0]; 
+        const count = fence[1].length;
         const lang = (fence[2] || '').trim().split(/\s+/)[0];
         const buf = [];
         i++;
-        const closeRe = new RegExp('^\\s*' + marker + '{3,}\\s*$');
+        const closeRe = new RegExp('^\\s*' + marker + '{' + count + ',}\\s*$');
         while (i < lines.length && !closeRe.test(lines[i])) { buf.push(lines[i]); i++; }
-        i++;
-        out.push(renderCodeBlock(buf.join('\n'), lang));
-        continue;
+        i++; out.push(renderCodeBlock(buf.join('\n'), lang)); continue;
       }
-      if (/^\s*``(?!`)/.test(line)) {
-        const trimmed = line.trim();
-        const single = trimmed.match(/^``([\s\S]*?)``\s*$/);
-        if (single && single[1].indexOf('``') === -1) { out.push(renderTextBox(single[1], 'text')); i++; continue; }
-        const open = trimmed.match(/^``\s*([^\s`]*)\s*$/);
-        if (open) {
-          const lang = open[1] || 'text';
-          const buf = [];
-          i++;
-          while (i < lines.length && !/^\s*``\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
-          i++;
-          out.push(renderTextBox(buf.join('\n'), lang));
-          continue;
-        }
-      }
-      if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1]) && /-/.test(lines[i + 1])) {
-        const headerLine = line; const alignLine  = lines[i + 1]; i += 2;
-        const rows = [];
+
+      // 2. 表格
+      if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+        const headerLine = line, alignLine = lines[i + 1]; i += 2; const rows = [];
         while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) { rows.push(lines[i]); i++; }
-        out.push(renderTable(headerLine, alignLine, rows));
-        continue;
+        
+        const headers = headerLine.trim().replace(/^\||\|$/g, '').split('|').map(x => x.trim());
+        const aligns = alignLine.trim().replace(/^\||\|$/g, '').split('|').map(a => {
+          a = a.trim();
+          const l = a.startsWith(':'), r = a.endsWith(':');
+          return (l && r) ? 'center' : r ? 'right' : 'left';
+        });
+        
+        let html = '<div class="table-wrap"><table><thead><tr>';
+        headers.forEach((h, idx) => { html += '<th style="text-align:' + (aligns[idx] || 'left') + '">' + mdInline(h) + '</th>'; });
+        html += '</tr></thead><tbody>';
+        rows.forEach(row => {
+          const cells = row.trim().replace(/^\||\|$/g, '').split('|').map(x => x.trim());
+          html += '<tr>';
+          headers.forEach((_, idx) => { html += '<td style="text-align:' + (aligns[idx] || 'left') + '">' + mdInline(cells[idx] || '') + '</td>'; });
+          html += '</tr>';
+        });
+        out.push(html + '</tbody></table></div>'); continue;
       }
+
+      // 3. 标题
       const h = line.match(/^(#{1,6})\s+(.*)$/);
       if (h) { out.push('<h' + Math.min(h[1].length, 4) + '>' + mdInline(h[2]) + '</h' + Math.min(h[1].length, 4) + '>'); i++; continue; }
+      
+      // 4. 分割线
       if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+      
+      // 5. 引用
       if (/^\s*>\s?/.test(line)) {
-        const buf = [];
-        while (i < lines.length && /^\s*>\s?/.test(lines[i])) { buf.push(lines[i].replace(/^\s*>\s?/, '')); i++; }
-        out.push('<blockquote>' + renderMarkdown(buf.join('\n')) + '</blockquote>');
-        continue;
+        const buf = []; while (i < lines.length && /^\s*>\s?/.test(lines[i])) { buf.push(lines[i].replace(/^\s*>\s?/, '')); i++; }
+        out.push('<blockquote>' + renderMarkdown(buf.join('\n')) + '</blockquote>'); continue;
       }
+      
+      // 6. 无序列表
       if (/^\s*[-*+]\s+/.test(line)) {
-        const buf = [];
-        while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) { buf.push(lines[i].replace(/^\s*[-*+]\s+/, '')); i++; }
-        out.push('<ul>' + buf.map((t) => '<li>' + mdInline(t) + '</li>').join('') + '</ul>');
-        continue;
+        const buf = []; while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) { buf.push(lines[i].replace(/^\s*[-*+]\s+/, '')); i++; }
+        out.push('<ul>' + buf.map((t) => '<li>' + mdInline(t) + '</li>').join('') + '</ul>'); continue;
       }
+      
+      // 7. 有序列表
       if (/^\s*\d+[.)]\s+/.test(line)) {
-        const buf = [];
-        while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) { buf.push(lines[i].replace(/^\s*\d+[.)]\s+/, '')); i++; }
-        out.push('<ol>' + buf.map((t) => '<li>' + mdInline(t) + '</li>').join('') + '</ol>');
-        continue;
+        const buf = []; while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) { buf.push(lines[i].replace(/^\s*\d+[.)]\s+/, '')); i++; }
+        out.push('<ol>' + buf.map((t) => '<li>' + mdInline(t) + '</li>').join('') + '</ol>'); continue;
       }
+      
+      // 8. 空行
       if (/^\s*$/.test(line)) { i++; continue; }
+      
+      // 9. 普通段落
       const buf = [];
-      while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^\s*(`{3,}|~{3,})/.test(lines[i]) && !/^\s*``(?!`)/.test(lines[i]) && !/^#{1,6}\s/.test(lines[i]) && !/^\s*[-*+]\s+/.test(lines[i]) && !/^\s*\d+[.)]\s+/.test(lines[i]) && !/^\s*>\s?/.test(lines[i]) && !/^\s*\|.*\|\s*$/.test(lines[i])) {
-        buf.push(lines[i]); i++;
+      while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^\s*(`{2,}|~{2,})/.test(lines[i]) && !/^#{1,6}\s/.test(lines[i]) && !/^\s*[-*+]\s+/.test(lines[i]) && !/^\s*\d+[.)]\s+/.test(lines[i]) && !/^\s*>\s?/.test(lines[i]) && !/^\s*\|.*\|\s*$/.test(lines[i])) { 
+        buf.push(lines[i]); i++; 
       }
-      out.push('<p>' + buf.map(mdInline).join('<br>') + '</p>');
+      out.push('<p>' + buf.map(t => mdInline(t)).join('<br>') + '</p>');
     }
     return out.join('');
   }
 
   /* =========================================================
-   *  状态与 DOM
+   *  数据与状态
    * ========================================================= */
-  const els = {
-    list: $('#list'), search: $('#search'), count: $('#count'), empty: $('#empty'),
-    viewer: $('#viewer'), viewTitle: $('#view-title'), viewTitleInput: $('#view-title-input'), viewMeta: $('#view-meta'),
-    contentScroll: $('#content-scroll'), descView: $('#desc-view'), codeEmbed: $('#code-embed'),
-    descEditor: $('#desc-editor'), descEditName: $('#desc-edit-name'), descMdInput: $('#desc-md-input'), descPreview: $('#desc-preview'), descPreviewHint: $('#desc-preview-hint'),
-    editor: $('#editor'), editName: $('#edit-name'), editCode: $('#edit-code'), hlLayer: $('#hl-layer'), hlCode: $('#hl-code'), lineNumbers: $('#line-numbers'),
-    fileInput: $('#file-input'), toast: $('#toast'), settingsPanel: $('#settings-panel'),
-    exportModal: $('#export-modal'), exportList: $('#export-list'), chkAll: $('#chk-all'), selCount: $('#sel-count'), totalCount: $('#total-count'),
-    groupModal: $('#group-modal'), groupModalTitle: $('#group-modal-title'), groupNameInput: $('#group-name-input'), groupKwInput: $('#group-kw-input')
-  };
-
-  let templates = [], groups = [], currentId = null, editingId = null, descEditingId = null;
-  let toastTimer = null, exportSet = new Set(), titleCancelling = false;
+  let templates = [], groups = [], currentId = null, descEditingId = null;
+  let exportSet = new Set(), pushTimer = null, pushing = false;
+  let chatTimer = null, currentChatTarget = 'public';
   let settings = { font: 'system', size: 14 };
-  let groupPicker = null, editingGroupId = undefined, pendingParentId = null;
-  let pushTimer = null, pushing = false, pendingPush = false;
+  let editingGroupId = undefined, pendingParentId = null, groupPicker = null;
 
-  // 提示词定义
-  const MSG_DOWNLOAD = [
-    '正在同服务器建立链接…',
-    '正在验证链接…',
-    '正在获取数据…',
-    '正在验证用户凭证…',
-    '正在下载数据…'
-  ];
-  const MSG_UPLOAD = [
-    '正在同服务器建立链接…',
-    '正在整理数据…',
-    '正在计算链接…',
-    '正在验证用户凭证…',
-    '正在上传数据…'
-  ];
+  let chatReadState = {};
+  let chatContactsMap = new Map();
+  let userCache = {}; 
 
-  function current() { return templates.find((t) => t.id === currentId) || null; }
+  let explorePage = 0, exploreQuery = '', exploreType = 'keyword';
 
-  /* =========================================================
-   *  云端与账号相关逻辑
-   * ========================================================= */
-  function usernameToEmail(u) { return u.trim().toLowerCase() + '@' + EMAIL_DOMAIN; }
-  function emailToUsername(e) { return String(e || '').replace('@' + EMAIL_DOMAIN, ''); }
-
-  function setUser(user) {
-    cloudUser = user || null;
-    const st  = $('#acc-status'), lo  = $('#btn-login'), out = $('#btn-logout');
-    if (!CLOUD) { st.textContent = '云端未配置'; st.classList.remove('online'); lo.hidden = true; out.hidden = true; return; }
-    if (user) {
-      st.textContent = emailToUsername(user.email); st.title = user.email; st.classList.add('online'); lo.hidden = true; out.hidden = false;
-    } else {
-      st.textContent = '未登录'; st.classList.remove('online'); lo.hidden = false; out.hidden = true;
-    }
+  function loadChatReadState() {
+    try { chatReadState = JSON.parse(localStorage.getItem(CHAT_READ_KEY)) || {}; } catch(e) { chatReadState = {}; }
+  }
+  function saveChatReadState() {
+    try { localStorage.setItem(CHAT_READ_KEY, JSON.stringify(chatReadState)); } catch(e) {}
   }
 
-  function openAuthModal() {
-    if (!CLOUD) { toast('请在代码里填入 SUPABASE_URL 与 ANON KEY'); return; }
-    $('#auth-hint').textContent = '首次使用请先点「注册」，注册成功会自动登录。';
-    $('#auth-pass').value = '';
-    $('#auth-modal').hidden = false;
-    setTimeout(() => $('#auth-user').focus(), 30);
+  function normalizeTemplates(arr) {
+    return arr.filter(t => t && typeof t === 'object').map(t => ({
+      id: t.id || uid(), name: t.name || '未命名', content: t.content || t.desc || (t.code ? '```cpp\n'+t.code+'\n```' : ''),
+      is_public: t.is_public !== false, updated: t.updated || Date.now(), short_id: t.short_id || null, author_name: t.author_name || null,
+      manualGroupId: t.manualGroupId
+    }));
   }
 
-  function translateAuthError(msg) {
-    const m = String(msg || '');
-    if (/Invalid login credentials/i.test(m)) return '账号或密码错误';
-    if (/User already registered/i.test(m)) return '账号已存在，请直接登录';
-    if (/Email not confirmed/i.test(m)) return '请到 Supabase 后台关闭「Confirm email」';
-    if (/Password should be at least/i.test(m)) return '密码太短（至少 6 位）';
-    if (/Unable to validate email/i.test(m)) return '账号格式不支持，请用字母数字下划线';
-    if (/Failed to fetch|NetworkError/i.test(m)) return '网络异常，请检查网络或稍后再试';
-    return m;
-  }
-
-  async function doAuth(mode) {
-    if (!CLOUD) { toast('云端未配置'); return; }
-    const u = $('#auth-user').value.trim(), p = $('#auth-pass').value, hint = $('#auth-hint');
-    if (!/^[A-Za-z0-9_-]{2,32}$/.test(u)) { hint.textContent = '账号需为 2-32 位字母、数字、_ 或 -'; return; }
-    if (p.length < 6) { hint.textContent = '密码至少 6 位'; return; }
-
-    const email = usernameToEmail(u);
-    let success = false, lastError = null;
-
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      hint.textContent = MSG_UPLOAD[attempt - 1];
-      try {
-        if (mode === 'register') {
-          const { error } = await sb.auth.signUp({ email, password: p });
-          if (error) throw error;
-          const { error: e2 } = await sb.auth.signInWithPassword({ email, password: p });
-          if (e2) { hint.textContent = '注册成功，请手动登录。'; return; }
-        } else {
-          const { error } = await sb.auth.signInWithPassword({ email, password: p });
-          if (error) throw error;
-        }
-        success = true; lastError = null; break;
-      } catch (e) {
-        lastError = e;
-        if (lastError.message && lastError.message.includes('Invalid login credentials')) break; 
-        if (attempt < 5) await new Promise(r => setTimeout(r, 1000));
-      }
-    }
-
-    if (success) {
-      $('#auth-modal').hidden = true; toast(mode === 'register' ? '注册成功' : '登录成功');
-      if (!templates.length) await pullCloud(true);
-    } else {
-      hint.textContent = translateAuthError(lastError?.message || '网络异常');
-    }
-  }
-
-  async function doLogout() {
-    if (!CLOUD) return;
-    // 增加醒目的数据清除提示
-    if (!confirm('确定要退出登录吗？\n\n⚠️ 退出将清空当前设备上的所有本地模板数据！\n（如果您已同步到云端，下次登录即可恢复）')) return;
-    
-    clearTimeout(pushTimer);
-    
-    // 1. 清空内存数据
-    templates = [];
-    groups = [];
-    currentId = null;
-    editingId = null;
-    descEditingId = null;
-
-    // 2. 抹除 localStorage 中的模板数据
-    try { localStorage.removeItem(KEY); } catch (e) {}
-
-    // 3. 强制清理 Supabase 登录凭证（防止残留）
+  function load() {
     try {
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
-          localStorage.removeItem(key);
-        }
-      });
+      const raw = localStorage.getItem(KEY) || localStorage.getItem('cpp-templates-v14');
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d && Array.isArray(d.templates)) { templates = normalizeTemplates(d.templates); groups = d.groups || []; }
+      }
     } catch (e) {}
-
-    // 4. 立即更新 UI，让界面变空
-    setUser(null);
-    showEmpty();
-    renderTree();
-    toast('已退出登录并清空本地数据');
-
-    // 5. 在后台静默通知服务器注销（即使断网也不会卡住）
-    sb.auth.signOut().catch(e => console.warn('远端注销异常:', e));
+  }
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify({ templates, groups })); } catch (e) {}
+    scheduleCloudPush();
   }
 
   async function computeShortId(str) {
-    const norm = String(str || '').replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').replace(/\n+$/, '');
+    const norm = String(str || '').replace(/\r\n?/g, '\n').trim();
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(norm));
     return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 10);
   }
 
-  // 保存时，严格确保代码被写入了 snippets 表，失败则抛错
   async function syncTemplateToCloud(t) {
     if (!CLOUD || !cloudUser) return;
-    const currentHash = await computeShortId(t.name + '\n' + (t.desc || '') + '\n' + t.code);
-    
-    // 如果哈希没变，说明内容一样，不用重复传了，直接复用
+    const currentHash = await computeShortId(t.name + '\n' + t.content);
     if (t.short_id === currentHash && t.author_name) return;
     
     t.short_id = currentHash;
-    t.author_name = emailToUsername(cloudUser.email);
+    t.author_name = userProfile ? userProfile.username : cloudUser.email.split('@')[0];
     
-    // 强制 upsert，必须有 UPDATE 权限
     const { error } = await sb.from('snippets').upsert({
-      short_id: currentHash,
-      name: t.name,
-      desc_text: t.desc || '',
-      code: t.code,
-      created_by: cloudUser.id,
-      author_name: t.author_name
+      short_id: currentHash, name: t.name, desc_text: t.content, 
+      created_by: cloudUser.id, author_name: t.author_name, is_public: t.is_public
     }, { onConflict: 'short_id' });
-
-    if (error) {
-      console.error('同步代码到 snippets 失败:', error);
-      throw new Error('分享链接生成失败');
-    }
-  }
-
-  async function shareCurrent() {
-    const t = current();
-    if (!t) return;
-    if (!CLOUD) { toast('云端未配置，无法分享'); return; }
-    if (!els.editor.hidden) { toast('请先保存代码再分享'); return; }
-    if (!cloudUser) { openAuthModal(); return; }
-    if (!(t.code || '').trim()) { toast('代码为空，无法分享'); return; }
-
-    const btn = $('#btn-share'); const oldText = btn.textContent;
-    btn.disabled = true; btn.style.opacity = '0.7';
-    btn.textContent = MSG_UPLOAD[0];
-
-    try {
-      await syncTemplateToCloud(t);
-      showShareResult(t.short_id, true);
-    } catch (e) {
-      toast('分享失败，请检查网络');
-    } finally {
-      btn.disabled = false; btn.style.opacity = ''; btn.textContent = oldText;
-    }
-  }
-
-  function showShareResult(shortId, existed) {
-    const url = location.origin + location.pathname + '#s=' + shortId;
-    $('#share-id').value = shortId; $('#share-url').value = url;
-    $('#share-tip').textContent = existed ? '您的模板在保存时已自动生成链接，相同内容天然去重。' : '把编号或链接发给别人，他们点「🔗 打开分享」即可导入。';
-    $('#share-modal').hidden = false;
-  }
-
-  async function openSharedById(raw, silent) {
-    if (!CLOUD) { toast('云端未配置'); return; }
-    const id = String(raw || '').trim().toLowerCase();
-    if (!/^[0-9a-f]{6,64}$/.test(id)) { if (!silent) toast('编号格式不正确'); return; }
-
-    let data = null, lastError = null;
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      if (!silent) toast(MSG_DOWNLOAD[attempt - 1], 2000);
-      try {
-        const res = await sb.from('snippets').select('short_id,name,desc_text,code,author_name').eq('short_id', id).maybeSingle();
-        if (res.error) throw res.error;
-        data = res.data; break;
-      } catch (e) {
-        lastError = e;
-        if (attempt < 5) await new Promise(r => setTimeout(r, 1000));
-      }
-    }
-
-    if (lastError) { toast('获取失败：网络异常'); return; }
-    if (!data) { if (!silent) toast('未找到编号 ' + id); return; }
-
-    const t = { 
-      id: uid(), 
-      name: uniqueName(data.name || ('分享 ' + id)), 
-      desc: data.desc_text || '', 
-      code: data.code || '', 
-      updated: Date.now(),
-      short_id: data.short_id,
-      author_name: data.author_name || '未知'
-    };
-    templates.unshift(t); persist(); renderTree(); viewTemplate(t.id);
-    if (!silent) toast('已成功导入分享模板');
+    if (error) throw error;
   }
 
   function scheduleCloudPush() {
@@ -488,222 +278,504 @@
     pushTimer = setTimeout(() => pushCloud(true), 1500);
   }
 
-  // 修复核心：先确保 snippets 表里的数据全部写入成功，再写 user_libs
   async function pushCloud(silent) {
-    if (!CLOUD || !cloudUser) return;
-    if (pushing) { pendingPush = true; return; }
+    if (!CLOUD || !cloudUser || pushing) return;
     pushing = true;
-    
-    let success = false, lastError = null;
-
+    let success = false;
     for (let attempt = 1; attempt <= 5; attempt++) {
-      if (!silent) toast(MSG_UPLOAD[attempt - 1], 2000);
+      if (!silent) toast(MSG_UPLOAD[attempt - 1], 1500);
       try {
-        // 1. 强制并发生成/检查所有代码是否都在 snippets 表里
         await Promise.all(templates.map(t => syncTemplateToCloud(t)));
-        
-        // 2. 组装轻量数据
         const template_ids = templates.map(t => t.short_id).filter(Boolean);
-        const dataToUpload = { template_ids, groups };
-
-        // 3. 保存到 user_libs（这是缓存映射，作为本地库的索引）
         const { error } = await sb.from('user_libs').upsert({
-          user_id: cloudUser.id, 
-          data: dataToUpload, 
-          updated_at: new Date().toISOString()
+          user_id: cloudUser.id, data: { template_ids, groups }, updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' });
-        
         if (error) throw error;
         success = true; break;
-      } catch (e) {
-        lastError = e;
-        if (attempt < 5) await new Promise(r => setTimeout(r, 1000));
-      }
+      } catch (e) { if (attempt < 5) await new Promise(r => setTimeout(r, 1000)); }
     }
-
     pushing = false;
-    if (success) { if (!silent) toast('已成功上传到云端'); } 
-    else { if (!silent) toast('上传失败，网络异常'); else console.warn('cloud push failed:', lastError); }
-    if (pendingPush) { pendingPush = false; scheduleCloudPush(); }
+    if (success && !silent) toast('已成功同步至云端');
   }
 
-  // 下载时，通过 user_libs 的 ids 去拉取 snippets
   async function pullCloud(silent) {
-    if (!CLOUD) { toast('云端未配置'); return false; }
-    if (!cloudUser) { toast('请先登录'); return false; }
+    if (!CLOUD || !cloudUser) return;
+    try {
+      const { data: lib } = await sb.from('user_libs').select('data').eq('user_id', cloudUser.id).maybeSingle();
+      if (!lib || !lib.data || !lib.data.template_ids) return;
+      const ids = lib.data.template_ids;
+      if (!ids.length) { templates = []; groups = lib.data.groups || []; persist(); renderTree(); return; }
 
-    let userLib = null, lastError = null;
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      if (!silent) toast(MSG_DOWNLOAD[attempt - 1], 2000);
-      try {
-        const res = await sb.from('user_libs').select('data,updated_at').eq('user_id', cloudUser.id).maybeSingle();
-        if (res.error) throw res.error;
-        userLib = res.data; lastError = null; break;
-      } catch (e) {
-        lastError = e;
-        if (attempt < 5) await new Promise(r => setTimeout(r, 1000));
-      }
-    }
-
-    if (lastError) { toast('下载失败，网络异常'); return false; }
-    if (!userLib || !userLib.data) { if (!silent) toast('云端还没有数据'); return false; }
-
-    const { template_ids, groups: cloudGroups } = userLib.data;
-    groups = Array.isArray(cloudGroups) ? normalizeGroups(cloudGroups) : [];
-    
-    if (!template_ids || !template_ids.length) {
-      templates = [];
-      try { localStorage.setItem(KEY, JSON.stringify({ templates, groups })); } catch (e) {}
-      currentId = null; renderTree(); showEmpty();
-      if (!silent) toast('已从云端下载完毕');
-      return true;
-    }
-
-    let snippetsData = null, snippetError = null;
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      if (!silent) toast(MSG_DOWNLOAD[attempt - 1], 2000);
-      try {
-        const res = await sb.from('snippets').select('short_id,name,desc_text,code,author_name').in('short_id', template_ids);
-        if (res.error) throw res.error;
-        snippetsData = res.data; snippetError = null; break;
-      } catch (e) {
-        snippetError = e;
-        if (attempt < 5) await new Promise(r => setTimeout(r, 1000));
-      }
-    }
-
-    if (snippetError) { toast('获取模板失败，网络异常'); return false; }
-
-    const map = new Map(snippetsData.map(d => [d.short_id, d]));
-    templates = template_ids.map(id => {
-      const d = map.get(id);
-      if (!d) return null;
-      return {
-        id: uid(),
-        short_id: d.short_id,
-        name: d.name,
-        desc: d.desc_text,
-        code: d.code,
-        author_name: d.author_name,
-        updated: Date.now()
-      };
-    }).filter(Boolean);
-
-    try { localStorage.setItem(KEY, JSON.stringify({ templates, groups })); } catch (e) {}
-    currentId = templates[0] ? templates[0].id : null;
-    renderTree();
-    if (currentId) viewTemplate(currentId); else showEmpty();
-    if (!silent) toast('已从云端下载完毕');
-    return true;
+      const { data: snips } = await sb.from('snippets').select('*').in('short_id', ids);
+      const map = new Map(snips.map(d => [d.short_id, d]));
+      templates = ids.map(id => {
+        const d = map.get(id); if (!d) return null;
+        return { id: uid(), short_id: d.short_id, name: d.name, content: d.desc_text || '', author_name: d.author_name, is_public: d.is_public, updated: Date.now() };
+      }).filter(Boolean);
+      groups = lib.data.groups || [];
+      persist(); renderTree();
+    } catch (e) {}
   }
 
-  function openSyncModal() {
-    if (!CLOUD) { toast('云端未配置'); return; }
-    if (!cloudUser) { openAuthModal(); return; }
-    $('#sync-info').textContent = '当前账号：' + emailToUsername(cloudUser.email) + '　本地：' + templates.length + ' 个模板 / ' + groups.length + ' 个分组';
-    $('#sync-modal').hidden = false;
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && cloudUser && !descEditingId) {
+      setTimeout(() => pullCloud(true), 1000);
+    }
+  });
+
+  /* =========================================================
+   *  用户与权限
+   * ========================================================= */
+  async function fetchProfile(user) {
+    if (!user) return null;
+    try {
+      const { data } = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      if (data) return data;
+      return { id: user.id, username: user.email.split('@')[0], role: user.id === '100dbf8c-9fcb-41cb-89e4-a00cffdb0687' ? 'root' : 'user' };
+    } catch (e) { return { id: user.id, username: '未知', role: 'user' }; }
+  }
+
+  async function setUser(user) {
+    cloudUser = user || null;
+    const st = $('#acc-status'), lo = $('#btn-login'), out = $('#btn-logout'), chatBtn = $('#btn-chat');
+    if (!CLOUD) { if (st) st.textContent = '云端未配置'; return; }
+    
+    if (user) {
+      if (!userProfile || userProfile.id !== user.id) {
+        if (st) st.textContent = '加载中…';
+        userProfile = await fetchProfile(user);
+        loadChatReadState();
+      }
+      if (st) {
+        st.innerHTML = `<span style="cursor:pointer;font-weight:600;" id="btn-open-profile" title="个人中心">${esc(userProfile.username)}</span> <span style="color:#7d8590;font-size:11px;">[${userProfile.role}]</span>`;
+        st.classList.add('online'); lo.hidden = true; out.hidden = false; chatBtn.hidden = false;
+        $('#btn-open-profile').onclick = openProfileModal;
+      }
+      startChatPolling();
+    } else {
+      userProfile = null;
+      if (st) { st.textContent = '未登录'; st.classList.remove('online'); lo.hidden = false; out.hidden = true; chatBtn.hidden = true; }
+      stopChatPolling();
+    }
+  }
+
+  function openProfileModal() {
+    if (!userProfile) return;
+    $('#pf-email').textContent = cloudUser.email;
+    $('#pf-role').textContent = userProfile.role === 'root' ? '超级管理员' : (userProfile.role === 'admin' ? '管理员' : '普通用户');
+    $('#pf-uid').textContent = cloudUser.id;
+    $('#pf-username').value = userProfile.username;
+    if (userProfile.role === 'admin' || userProfile.role === 'root') $('#btn-admin-panel').hidden = false;
+    else $('#btn-admin-panel').hidden = true;
+    $('#profile-modal').hidden = false;
+  }
+
+  async function saveUsername() {
+    const newName = $('#pf-username').value.trim();
+    if (newName.length < 2) return toast('用户名太短');
+    if (newName === userProfile.username) return;
+    const btn = $('#btn-save-username'); btn.disabled = true;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      toast(MSG_UPLOAD[attempt - 1], 1000);
+      try {
+        const { error } = await sb.from('profiles').update({ username: newName }).eq('id', cloudUser.id);
+        if (error) throw error;
+        userProfile.username = newName; setUser(cloudUser); toast('改名成功'); btn.disabled = false; return;
+      } catch (e) {
+        if (e.code === '23505') { toast('该用户名已被占用'); btn.disabled = false; return; }
+        if (attempt === 5) { toast('修改失败'); btn.disabled = false; }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+  }
+
+  async function savePassword() {
+    const oldPw = $('#pf-old-pw').value, newPw = $('#pf-new-pw').value, confirmPw = $('#pf-confirm-pw').value;
+    if (!oldPw) return toast('请输入原密码');
+    if (newPw.length < 6) return toast('新密码至少 6 位');
+    if (newPw !== confirmPw) return toast('两次密码不一致');
+    const btn = $('#btn-save-pw'); btn.disabled = true;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      toast(MSG_UPLOAD[attempt - 1], 1000);
+      try {
+        const { error: authErr } = await sb.auth.signInWithPassword({ email: cloudUser.email, password: oldPw });
+        if (authErr) { toast('原密码错误'); btn.disabled = false; return; }
+        break;
+      } catch (e) { if (attempt === 5) { toast('验证失败'); btn.disabled = false; return; } await new Promise(r => setTimeout(r, 1000)); }
+    }
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      toast(MSG_UPLOAD[attempt - 1], 1000);
+      try {
+        const { error } = await sb.auth.updateUser({ password: newPw });
+        if (error) throw error;
+        toast('密码修改成功'); btn.disabled = false; return;
+      } catch (e) { if (attempt === 5) { toast('修改失败'); btn.disabled = false; } await new Promise(r => setTimeout(r, 1000)); }
+    }
   }
 
   /* =========================================================
-   *  本地持久化 & 设置
+   *  管理面板
    * ========================================================= */
-  function persist() {
-    try { localStorage.setItem(KEY, JSON.stringify({ templates, groups })); } catch (e) { toast('保存失败：' + e.message); }
-    scheduleCloudPush();
+  async function openAdminPanel() {
+    $('#admin-modal').hidden = false;
+    $('#admin-user-list').innerHTML = '<li style="padding:12px;color:#7d8590;font-size:13px">加载中…</li>';
+    $('#admin-template-list').innerHTML = '';
+    
+    let query = sb.from('profiles').select('*');
+    if (userProfile.role === 'admin') query = query.eq('role', 'user');
+    else if (userProfile.role === 'root') query = query.neq('id', cloudUser.id);
+
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      toast(MSG_DOWNLOAD[attempt - 1], 1000);
+      try {
+        const { data, error } = await query;
+        if (error) throw error;
+        const ul = $('#admin-user-list'); ul.innerHTML = '';
+        (data || []).forEach(u => {
+          const li = document.createElement('li'); li.className = 'admin-user-item';
+          li.innerHTML = `<span class="u-name">${esc(u.username)}</span>`;
+          if (userProfile.role === 'root') {
+            li.innerHTML += `<select class="role-select" data-uid="${u.id}">
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+              <option value="root" ${u.role === 'root' ? 'selected' : ''}>root</option>
+            </select>`;
+          } else {
+            li.innerHTML += `<span class="u-role">${u.role}</span>`;
+          }
+          li.querySelector('.u-name').onclick = () => viewUserTemplates(u);
+          
+          if (userProfile.role === 'root') {
+            li.querySelector('.role-select').onchange = async (e) => {
+              const newRole = e.target.value;
+              for (let i = 1; i <= 5; i++) {
+                toast(MSG_UPLOAD[i - 1], 1000);
+                try {
+                  const { error } = await sb.from('profiles').update({ role: newRole }).eq('id', u.id);
+                  if (error) throw error;
+                  toast('权限已更新'); break;
+                } catch (err) { if (i === 5) { toast('修改失败'); e.target.value = u.role; } await new Promise(r => setTimeout(r, 1000)); }
+              }
+            };
+          }
+          ul.appendChild(li);
+        });
+        break;
+      } catch (e) { if (attempt === 5) toast('加载失败'); await new Promise(r => setTimeout(r, 1000)); }
+    }
   }
 
-  function extractFirstCodeBlock(md) {
-    const m = /```[^\n]*\n([\s\S]*?)```/.exec(md || '');
-    return m ? m[1].replace(/\n+$/, '') : null;
-  }
-  function normalizeTemplates(arr) {
-    return arr.filter((t) => t && typeof t === 'object').map((t) => {
-      const item = { 
-        id: t.id || uid(), 
-        name: t.name || t.title || '未命名', 
-        desc: typeof t.desc === 'string' ? t.desc : '', 
-        code: typeof t.code === 'string' ? t.code : (extractFirstCodeBlock(t.content) || ''), 
-        updated: t.updated || Date.now(),
-        short_id: t.short_id || null,
-        author_name: t.author_name || null
-      };
-      if ('manualGroupId' in t) item.manualGroupId = t.manualGroupId;
-      return item;
-    });
-  }
-  function normalizeGroups(arr) {
-    return arr.filter((g) => g && typeof g === 'object').map((g) => ({
-      id: g.id || uid(), name: g.name || '未命名分组', parentId: g.parentId || null, collapsed: !!g.collapsed, keywords: Array.isArray(g.keywords) ? g.keywords.filter((k) => typeof k === 'string') : []
-    }));
-  }
-  function load() {
+  async function viewUserTemplates(user) {
+    $('#admin-viewer-head').textContent = `正在加载 ${user.username} 的模板…`;
+    const ul = $('#admin-template-list'); ul.innerHTML = '';
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const data = JSON.parse(raw);
-        if (data && typeof data === 'object' && Array.isArray(data.templates)) {
-          templates = normalizeTemplates(data.templates); groups = Array.isArray(data.groups) ? normalizeGroups(data.groups) : []; return;
+      const { data: lib } = await sb.from('user_libs').select('data').eq('user_id', user.id).maybeSingle();
+      if (!lib || !lib.data || !lib.data.template_ids) { $('#admin-viewer-head').textContent = `无模板`; return; }
+      const { data: snips } = await sb.from('snippets').select('*').in('short_id', lib.data.template_ids);
+      
+      $('#admin-viewer-head').textContent = `${user.username} 的模板 (${snips.length} 个)`;
+      snips.forEach(sn => {
+        const li = document.createElement('li'); li.className = 'admin-user-item';
+        li.innerHTML = `<span class="u-name">${esc(sn.name)} ${sn.is_public ? '🌐' : '🔒'}</span><span class="u-role">${sn.short_id}</span>`;
+        li.onclick = () => {
+          const t = { id: uid(), name: sn.name, content: sn.desc_text || '', short_id: sn.short_id, author_name: user.username, is_public: sn.is_public, updated: Date.now() };
+          templates.unshift(t); persist(); renderTree(); viewTemplate(t.id); $('#admin-modal').hidden = true;
+        };
+        ul.appendChild(li);
+      });
+    } catch (e) { $('#admin-viewer-head').textContent = '加载失败'; }
+  }
+
+  /* =========================================================
+   *  公共广场
+   * ========================================================= */
+  function openExploreModal() {
+    $('#explore-modal').hidden = false;
+    explorePage = 0; exploreQuery = ''; exploreType = 'keyword';
+    $('#explore-type').value = 'keyword'; $('#explore-search').value = '';
+    loadExplorePage();
+  }
+
+  async function loadExplorePage() {
+    const ul = $('#explore-list');
+    ul.innerHTML = '<li style="padding:12px;color:#7d8590;font-size:13px;text-align:center;">正在获取数据…</li>';
+    $('#explore-prev').disabled = true; $('#explore-next').disabled = true;
+
+    const pageSize = 10, start = explorePage * pageSize;
+    let query = sb.from('snippets').select('*', { count: 'exact' }).eq('is_public', true);
+
+    if (exploreQuery) {
+      if (exploreType === 'keyword') query = query.or(`name.ilike.%${exploreQuery}%,desc_text.ilike.%${exploreQuery}%`);
+      else if (exploreType === 'user') query = query.ilike('author_name', `%${exploreQuery}%`);
+    }
+
+    try {
+      const { data, count, error } = await query.order('created_at', { ascending: false }).range(start, start + pageSize - 1);
+      if (error) throw error;
+      
+      ul.innerHTML = '';
+      if (!data || data.length === 0) {
+        ul.innerHTML = '<li style="padding:20px;color:#5a6270;font-size:13px;text-align:center;">没有找到公开的模板</li>';
+        $('#explore-page-info').textContent = `第 0 页`; return;
+      }
+
+      data.forEach(sn => {
+        const li = document.createElement('li'); li.className = 'admin-user-item'; li.style.cursor = 'default';
+        li.innerHTML = `
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:14px; color:#e6edf3; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(sn.name)}</div>
+            <div style="font-size:11px; color:#7d8590; margin-top:4px;">作者: ${esc(sn.author_name || '未知')}</div>
+          </div>
+          <button class="btn primary" style="padding:4px 12px; font-size:12px;">导入</button>
+        `;
+        li.querySelector('div').onclick = () => {
+          const t = { id: uid(), name: sn.name, content: sn.desc_text || '', short_id: sn.short_id, author_name: sn.author_name, is_public: true, updated: Date.now() };
+          templates.unshift(t); persist(); renderTree(); viewTemplate(t.id); $('#explore-modal').hidden = true; toast('已导入该模板');
+        };
+        li.querySelector('button').onclick = () => {
+          const t = { id: uid(), name: sn.name, content: sn.desc_text || '', short_id: sn.short_id, author_name: sn.author_name, is_public: true, updated: Date.now() };
+          templates.unshift(t); persist(); renderTree(); viewTemplate(t.id); $('#explore-modal').hidden = true; toast('成功导入到本地');
+        };
+        ul.appendChild(li);
+      });
+
+      const maxPage = Math.ceil(count / pageSize);
+      $('#explore-page-info').textContent = `第 ${explorePage + 1} 页 / 共 ${maxPage} 页`;
+      $('#explore-prev').disabled = explorePage === 0;
+      $('#explore-next').disabled = (start + pageSize) >= count;
+    } catch (e) { ul.innerHTML = '<li style="padding:20px;color:#f85149;font-size:13px;text-align:center;">网络异常，加载失败</li>'; }
+  }
+
+  /* =========================================================
+   *  聊天室 (动态联系人 + 未读红点 + 撤回)
+   * ========================================================= */
+  function startChatPolling() { if (chatTimer) return; chatTimer = setInterval(pollChat, 3000); pollChat(); }
+  function stopChatPolling() { clearInterval(chatTimer); chatTimer = null; }
+
+  async function pollChat() {
+    if (!cloudUser) return;
+    
+    try {
+      const { data: msgs } = await sb.from('messages').select('sender_id, receiver_id, created_at')
+        .or(`sender_id.eq.${cloudUser.id},receiver_id.eq.${cloudUser.id}`)
+        .order('created_at', { ascending: false }).limit(100);
+        
+      chatContactsMap.clear();
+      const missingIds = new Set();
+
+      if (msgs) {
+        msgs.forEach(m => {
+          const peerId = m.sender_id === cloudUser.id ? m.receiver_id : m.sender_id;
+          if (!peerId) return;
+          if (!chatContactsMap.has(peerId)) {
+            chatContactsMap.set(peerId, { lastMsgTime: new Date(m.created_at).getTime(), username: userCache[peerId] || '加载中...' });
+            if (!userCache[peerId]) missingIds.add(peerId);
+          }
+        });
+      }
+
+      if (missingIds.size > 0) {
+        const { data: profiles } = await sb.from('profiles').select('id, username').in('id', Array.from(missingIds));
+        if (profiles) {
+          profiles.forEach(p => {
+            userCache[p.id] = p.username;
+            if (chatContactsMap.has(p.id)) {
+              chatContactsMap.get(p.id).username = p.username;
+            }
+          });
         }
       }
-    } catch (e) {}
-    for (const k of OLD_KEYS) {
-      try {
-        const raw = localStorage.getItem(k);
-        if (!raw) continue;
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) { templates = normalizeTemplates(arr); groups = []; persist(); return; }
-      } catch (e) {}
+    } catch(e) { console.warn('获取联系人失败', e); }
+
+    await checkUnreadStatus();
+
+    if (!$('#chat-modal').hidden) {
+      await loadChatMessages();
+      renderChatContacts();
     }
-    templates = []; groups = [];
   }
-  function applySettings() {
-    const root = document.documentElement;
-    root.style.setProperty('--ui-font', FONTS[settings.font] || FONTS.system);
-    root.style.setProperty('--ui-size', settings.size + 'px');
-    root.style.setProperty('--md-size', (settings.size * 0.96).toFixed(2) + 'px');
-    root.style.setProperty('--code-size', (settings.size * 0.93).toFixed(2) + 'px');
+
+  async function checkUnreadStatus() {
+    const { data: msgs } = await sb.from('messages').select('sender_id, receiver_id, created_at')
+      .or(`sender_id.eq.${cloudUser.id},receiver_id.eq.${cloudUser.id}`)
+      .order('created_at', { ascending: false }).limit(200);
+
+    let hasUnreadGlobal = false;
+    let unreadMap = {};
+
+    if (msgs) {
+      msgs.forEach(m => {
+        const peerId = m.sender_id === cloudUser.id ? m.receiver_id : m.sender_id;
+        const time = new Date(m.created_at).getTime();
+        if (m.sender_id !== cloudUser.id) {
+          const targetKey = peerId ? peerId : 'public';
+          const lastRead = chatReadState[targetKey] || 0;
+          if (time > lastRead) {
+            unreadMap[targetKey] = true;
+            hasUnreadGlobal = true;
+          }
+        }
+      });
+    }
+
+    const chatBtn = $('#btn-chat');
+    if (chatBtn) {
+      if (hasUnreadGlobal) chatBtn.innerHTML = '💬 聊天 <span style="color:#f85149;font-size:16px;">●</span>';
+      else chatBtn.innerHTML = '💬 聊天';
+    }
+
+    window._unreadMap = unreadMap;
   }
-  function loadSettings() {
+
+  function renderChatContacts() {
+    const ul = $('#chat-contacts');
+    if (!ul) return;
+    const unreadMap = window._unreadMap || {};
+    
+    let html = `<li class="admin-user-item ${currentChatTarget === 'public' ? 'active' : ''}" data-uid="public">
+      <span class="u-name">🌐 公共聊天室 ${unreadMap['public'] ? '<span style="color:#f85149;">●</span>' : ''}</span>
+    </li>`;
+
+    const contacts = Array.from(chatContactsMap.entries())
+      .sort((a, b) => b[1].lastMsgTime - a[1].lastMsgTime);
+
+    contacts.forEach(([uid, info]) => {
+      const isActive = currentChatTarget === uid ? 'active' : '';
+      const hasUnread = unreadMap[uid] ? '<span style="color:#f85149;">●</span>' : '';
+      html += `<li class="admin-user-item ${isActive}" data-uid="${uid}" data-username="${esc(info.username)}">
+        <span class="u-name">👤 ${esc(info.username)} ${hasUnread}</span>
+      </li>`;
+    });
+
+    if ($('#chat-search-user').value.trim()) {
+       // 搜索时由 searchChatUser 控制 DOM
+    } else {
+       ul.innerHTML = html;
+    }
+  }
+
+  async function loadChatMessages() {
+    if (!cloudUser || $('#chat-modal').hidden) return;
+    let query = sb.from('messages').select('*').order('created_at', { ascending: true }).limit(50);
+    
+    if (currentChatTarget === 'public') {
+      query = query.is('receiver_id', null);
+    } else {
+      query = query.or(`and(sender_id.eq.${cloudUser.id},receiver_id.eq.${currentChatTarget}),and(sender_id.eq.${currentChatTarget},receiver_id.eq.${cloudUser.id})`);
+    }
+
     try {
-      const raw = localStorage.getItem(SETTINGS_KEY);
-      if (raw) {
-        const s = JSON.parse(raw);
-        if (s && typeof s === 'object') { settings.font = FONTS[s.font] ? s.font : 'system'; settings.size = Math.max(12, Math.min(20, Number(s.size) || 14)); }
+      const { data } = await query;
+      if (!data) return;
+      
+      if (data.length > 0) {
+        const newestTime = new Date(data[data.length - 1].created_at).getTime();
+        if (!chatReadState[currentChatTarget] || newestTime > chatReadState[currentChatTarget]) {
+           chatReadState[currentChatTarget] = newestTime;
+           saveChatReadState();
+        }
       }
+
+      const ul = $('#chat-list'); let html = '';
+      data.forEach(m => {
+        const isMine = m.sender_id === cloudUser.id;
+        const msgDate = new Date(m.created_at).getTime();
+        const diffMin = (Date.now() - msgDate) / 1000 / 60;
+        
+        let contentHtml = esc(m.content);
+        let revokeBtn = '';
+
+        if (m.is_deleted) {
+          contentHtml = '<span style="color:#7d8590;font-style:italic;">该消息已撤回</span>';
+        } else if (isMine && diffMin <= 5) {
+          revokeBtn = `<button class="revoke-btn" data-id="${m.id}" style="background:none;border:none;color:rgba(255,255,255,0.6);font-size:11px;cursor:pointer;padding:0;margin-left:8px;text-decoration:underline;">撤回</button>`;
+        }
+
+        html += `<li class="chat-msg ${isMine ? 'mine' : 'other'}">
+          ${!isMine ? `<div class="chat-sender">${esc(m.sender_name)}</div>` : ''}
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+            <span>${contentHtml}</span>
+            ${revokeBtn}
+          </div>
+        </li>`;
+      });
+      ul.innerHTML = html; ul.parentElement.scrollTop = ul.parentElement.scrollHeight;
     } catch (e) {}
-    applySettings(); $('#set-size').value = settings.size; $('#set-size-val').textContent = settings.size + 'px'; $('#set-font').value = settings.font;
   }
-  function saveSettings() {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
-    applySettings(); if (!els.editor.hidden) renderCodeHighlight();
+
+  async function sendChatMessage() {
+    const text = $('#chat-input').value.trim();
+    if (!text || !cloudUser) return;
+    $('#chat-input').value = '';
+    try {
+      const payload = { sender_id: cloudUser.id, sender_name: userProfile ? userProfile.username : cloudUser.email, content: text };
+      if (currentChatTarget !== 'public') payload.receiver_id = currentChatTarget;
+      await sb.from('messages').insert(payload);
+      loadChatMessages();
+    } catch (e) { toast('发送失败'); }
+  }
+
+  async function revokeMessage(id) {
+    if (!confirm('确定撤回该消息？')) return;
+    try {
+      const { error } = await sb.from('messages').update({ is_deleted: true }).eq('id', id);
+      if (error) throw error;
+      await loadChatMessages();
+      toast('已撤回');
+    } catch (e) { 
+      console.error('撤回失败:', e);
+      toast('撤回失败，请检查数据库权限或网络'); 
+    }
+  }
+
+  async function searchChatUser() {
+    const q = $('#chat-search-user').value.trim();
+    const ul = $('#chat-contacts');
+    
+    if (!q) {
+      renderChatContacts();
+      return;
+    }
+    
+    ul.innerHTML = '<li style="padding:10px;color:#7d8590;font-size:12px;">搜索中...</li>';
+    
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q);
+    let query = sb.from('profiles').select('id, username');
+    if (isUuid) query = query.eq('id', q);
+    else query = query.ilike('username', `%${q}%`);
+    
+    try {
+      const { data } = await query.limit(10);
+      if (!data || !data.length) {
+        ul.innerHTML = '<li style="padding:10px;color:#5a6270;font-size:12px;">未找到用户</li>';
+        return;
+      }
+      ul.innerHTML = '';
+      data.forEach(u => {
+        if (u.id === cloudUser.id) return;
+        userCache[u.id] = u.username; // 存入缓存
+        const li = document.createElement('li');
+        li.className = 'admin-user-item';
+        li.dataset.uid = u.id;
+        li.dataset.username = u.username;
+        li.innerHTML = `<span class="u-name">👤 ${esc(u.username)}</span>`;
+        ul.appendChild(li);
+      });
+    } catch (e) {
+      ul.innerHTML = '<li style="padding:10px;color:#f85149;font-size:12px;">搜索失败</li>';
+    }
   }
 
   /* =========================================================
-   *  UI 渲染（树、视图、编辑器）
+   *  树形列表与模板操作
    * ========================================================= */
-  function toast(msg, duration = 1800) {
-    els.toast.textContent = msg; els.toast.classList.add('show'); clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => els.toast.classList.remove('show'), duration);
-  }
-  function copyText(text, msg) {
-    const done = () => toast(msg || '已复制到剪贴板');
-    const fallback = () => {
-      const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select(); let ok = false;
-      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-      document.body.removeChild(ta); ok ? done() : toast('复制失败，请手动选择复制');
-    };
-    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done).catch(fallback);
-    else fallback();
-  }
-
   function getEffectiveGroup(t) {
     if (t.manualGroupId !== undefined) {
       if (t.manualGroupId === null) return null;
       if (groups.some((g) => g.id === t.manualGroupId)) return t.manualGroupId;
     }
     if (!groups.length) return null;
-    const hay = ((t.name || '') + ' ' + (t.desc || '')).toLowerCase();
+    const hay = ((t.name || '') + ' ' + (t.content || '')).toLowerCase();
     for (const g of groups) {
       if (g.keywords && g.keywords.length) {
         for (const kw of g.keywords) { if (kw && hay.indexOf(kw.toLowerCase()) !== -1) return g.id; }
@@ -711,25 +783,23 @@
     }
     return null;
   }
+
   function collectGroupIds(gid) {
     const set = new Set([gid]); let changed = true;
     while (changed) { changed = false; groups.forEach((g) => { if (g.parentId && set.has(g.parentId) && !set.has(g.id)) { set.add(g.id); changed = true; } }); }
     return set;
   }
 
-  function matchSearch(t, q) {
-    if (!q) return true;
-    return ((t.name || '') + '\n' + (t.desc || '') + '\n' + (t.code || '')).toLowerCase().indexOf(q) !== -1;
-  }
   function renderTree() {
-    const q = els.search.value.trim().toLowerCase();
+    const q = $('#search').value.trim().toLowerCase();
     const templatesByGroup = new Map(), ungrouped = [];
     templates.forEach((t) => {
-      if (!matchSearch(t, q)) return;
+      if (q && !(t.name + t.content).toLowerCase().includes(q)) return;
       const gid = getEffectiveGroup(t);
       if (gid) { if (!templatesByGroup.has(gid)) templatesByGroup.set(gid, []); templatesByGroup.get(gid).push(t); } 
       else ungrouped.push(t);
     });
+
     const groupTotal = new Map();
     function calcTotal(gid) {
       let n = (templatesByGroup.get(gid) || []).length;
@@ -746,11 +816,16 @@
       if (q && total === 0) return;
       const expanded = q ? true : !g.collapsed; const pad = depth * 16;
       out.push(
-        '<div class="tree-node group-node" style="padding-left:' + (pad + 10) + 'px" data-gid="' + g.id + '">' +
-          '<span class="arrow">' + (expanded ? '▾' : '▸') + '</span><span class="folder-icon">' + (expanded ? '📂' : '📁') + '</span>' +
-          '<span class="node-name" title="' + esc(g.name) + '">' + esc(g.name) + '</span><span class="node-count">(' + total + ')</span>' +
-          '<div class="node-ops"><button class="node-op" data-gop="add-sub" title="新建子分组">＋</button><button class="node-op" data-gop="edit" title="编辑分组">⚙</button><button class="node-op" data-gop="export" title="导出分组">📤</button><button class="node-op danger" data-gop="delete" title="删除分组">✕</button></div>' +
-        '</div>'
+        `<div class="tree-node group-node" style="padding-left:${pad + 10}px" data-gid="${g.id}">
+          <span class="arrow">${expanded ? '▾' : '▸'}</span><span class="folder-icon">${expanded ? '📂' : '📁'}</span>
+          <span class="node-name" title="${esc(g.name)}">${esc(g.name)}</span><span class="node-count">(${total})</span>
+          <div class="node-ops">
+            <button class="node-op" data-gop="add-sub" title="新建子分组">＋</button>
+            <button class="node-op" data-gop="edit" title="编辑">⚙</button>
+            <button class="node-op" data-gop="export" title="导出">📤</button>
+            <button class="node-op danger" data-gop="delete" title="删除">✕</button>
+          </div>
+        </div>`
       );
       if (expanded) {
         childGroups.forEach((cg) => renderGroup(cg, depth + 1));
@@ -760,501 +835,384 @@
     function renderTemplate(t, depth) {
       const pad = depth * 16; const active = t.id === currentId ? ' active' : '';
       out.push(
-        '<div class="tree-node template-node' + active + '" style="padding-left:' + (pad + 10) + 'px" data-tid="' + t.id + '">' +
-          '<span class="arrow"></span><span class="file-icon">📄</span><span class="node-name" title="' + esc(t.name) + '">' + esc(t.name) + '</span>' +
-          '<div class="node-ops"><button class="node-op" data-top="rename" title="编辑名称">✎</button><button class="node-op" data-top="copy" title="复制代码">⧉</button><button class="node-op" data-top="move" title="移动到分组">⇄</button><button class="node-op danger" data-top="delete" title="删除">✕</button></div>' +
-        '</div>'
+        `<div class="tree-node template-node${active}" style="padding-left:${pad + 10}px" data-tid="${t.id}">
+          <span class="arrow"></span><span class="file-icon">${t.is_public ? '📄' : '🔒'}</span>
+          <span class="node-name" title="${esc(t.name)}">${esc(t.name)}</span>
+          <div class="node-ops">
+            <button class="node-op" data-top="rename" title="改名">✎</button>
+            <button class="node-op" data-top="move" title="移动分组">⇄</button>
+            <button class="node-op danger" data-top="delete" title="删除">✕</button>
+          </div>
+        </div>`
       );
     }
+    
     groups.filter((g) => g.parentId === null || !groups.some((p) => p.id === g.parentId)).forEach((g) => renderGroup(g, 0));
     if (ungrouped.length) {
-      out.push('<div class="tree-node group-node" style="padding-left:10px" data-virtual="ungrouped"><span class="arrow"></span><span class="folder-icon">📄</span><span class="node-name" style="color:#9aa4b2">未分组</span><span class="node-count">(' + ungrouped.length + ')</span></div>');
+      out.push(`<div class="tree-node group-node" style="padding-left:10px" data-virtual="ungrouped"><span class="arrow"></span><span class="folder-icon">📄</span><span class="node-name" style="color:#9aa4b2">未分组</span><span class="node-count">(${ungrouped.length})</span></div>`);
       ungrouped.forEach((t) => renderTemplate(t, 1));
     }
+    
     if (!out.length) {
       const empty = !templates.length && !groups.length;
-      els.list.innerHTML = empty ? '<div class="list-empty">还没有模板或分组\n点击「＋ 新建」/「📥 导入」开始\n或点「📁 分组」建立分组</div>' : '<div class="list-empty">' + (q ? '没有匹配的内容' : '没有内容') + '</div>';
-    } else { els.list.innerHTML = out.join(''); }
-    els.count.textContent = templates.length + ' 个模板 · ' + groups.length + ' 个分组';
+      $('#list').innerHTML = empty ? '<div class="list-empty">没有模板\n点击「新建」开始</div>' : '<div class="list-empty">没有匹配的内容</div>';
+    } else { $('#list').innerHTML = out.join(''); }
+    $('#count').textContent = templates.length + ' 个模板 · ' + groups.length + ' 个分组';
   }
-
-  function showEmpty()  { els.empty.hidden=false; els.viewer.hidden=true;  els.editor.hidden=true; els.descEditor.hidden=true; }
-  function showViewer() { els.empty.hidden=true;  els.viewer.hidden=false; els.editor.hidden=true; els.descEditor.hidden=true; }
-  function showCodeEditor() { els.empty.hidden=true; els.viewer.hidden=true; els.editor.hidden=false; els.descEditor.hidden=true; }
-  function showDescEditor() { els.empty.hidden=true; els.viewer.hidden=true; els.editor.hidden=true; els.descEditor.hidden=false; }
-
-  function commitTitleIfEditing() {
-    if (els.viewTitleInput.hidden) return;
-    const t = current();
-    if (t) {
-      const v = els.viewTitleInput.value.trim() || '未命名';
-      if (v !== t.name) { t.name = v; t.updated = Date.now(); persist(); renderTree(); syncTemplateToCloud(t); }
-      els.viewTitle.textContent = t.name; els.viewTitle.title = t.name;
-    }
-    els.viewTitle.hidden = false; els.viewTitleInput.hidden = true;
-  }
-  function enterTitleEdit() {
-    const t = current(); if (!t) return;
-    if (!els.editor.hidden || !els.descEditor.hidden) { showViewer(); renderViewerBody(t); }
-    els.viewTitle.hidden = true; els.viewTitleInput.hidden = false; els.viewTitleInput.value = t.name;
-    els.viewTitleInput.focus(); els.viewTitleInput.select();
-  }
-  function exitTitleEdit(save) {
-    const t = current();
-    if (save && t) {
-      const v = els.viewTitleInput.value.trim() || '未命名';
-      if (v !== t.name) { t.name = v; t.updated = Date.now(); persist(); renderTree(); syncTemplateToCloud(t); toast('名称已更新'); }
-      els.viewTitle.textContent = t.name; els.viewTitle.title = t.name;
-    } else if (t) { els.viewTitle.textContent = t.name; }
-    els.viewTitle.hidden = false; els.viewTitleInput.hidden = true;
-  }
-
-  function renderDesc(t) {
-    const text = (t.desc || '').trim();
-    if (text) { els.descView.innerHTML = renderMarkdown(text); els.descView.classList.remove('empty'); els.descView.hidden = false; } 
-    else { els.descView.innerHTML = '暂无简介（点击「✎ 编辑简介」用 Markdown 补充说明）'; els.descView.classList.add('empty'); els.descView.hidden = false; }
-  }
-  function renderCodeEmbed(t) { els.codeEmbed.innerHTML = renderCodeBlock(t.code || '', 'cpp'); }
-  function renderViewerBody(t) { renderDesc(t); renderCodeEmbed(t); }
 
   function viewTemplate(id) {
-    commitTitleIfEditing();
-    const t = templates.find((x) => x.id === id); if (!t) return;
-    currentId = id; els.viewTitle.textContent = t.name; els.viewTitle.title = t.name; els.viewTitle.hidden = false; els.viewTitleInput.hidden = true;
-    
-    const lines = t.code ? t.code.split('\n').length : 0; 
-    let metaText = lines + ' 行 · ' + formatSize(t.code.length);
-    if (t.author_name && cloudUser && t.author_name !== emailToUsername(cloudUser.email)) {
-      metaText += ' · 作者: ' + t.author_name;
-    } else if (t.author_name && !cloudUser) {
-      metaText += ' · 作者: ' + t.author_name;
+    const t = templates.find(x => x.id === id); if (!t) return;
+    currentId = id;
+    $('#view-title').textContent = t.name;
+    let meta = '作者: ' + (t.author_name || '本地');
+    if (t.short_id) meta += ' · 分享编号: ' + t.short_id;
+    meta += ` · ${t.is_public ? '🌐 公开' : '🔒 私密'}`;
+    $('#view-meta').textContent = meta;
+
+    $('#desc-view').innerHTML = renderMarkdown(t.content);
+    $('#empty').hidden = true; $('#viewer').hidden = false; $('#desc-editor').hidden = true;
+
+    const toggleBtn = $('#btn-toggle-public');
+    if (toggleBtn) {
+      toggleBtn.textContent = t.is_public ? '🌐 公开' : '🔒 私密';
+      toggleBtn.style.color = t.is_public ? '#3fb950' : '#ff7b72';
     }
-    els.viewMeta.textContent = metaText;
-    
-    renderViewerBody(t); els.contentScroll.scrollTop = 0; showViewer(); renderTree();
+
+    $('#btn-share').onclick = async () => {
+      if (!cloudUser) return toast('请先登录');
+      try { await syncTemplateToCloud(t); 
+        $('#share-id').value = t.short_id; 
+        $('#share-url').value = location.origin + location.pathname + '#s=' + t.short_id; 
+        $('#share-modal').hidden = false; viewTemplate(id);
+      } catch (e) { toast('失败'); }
+    };
+    renderTree();
   }
 
-  let descRafPending = false;
-  function renderDescPreviewNow() {
-    const md = els.descMdInput.value;
-    if (md.trim()) { els.descPreview.innerHTML = renderMarkdown(md); els.descPreviewHint.textContent = md.split('\n').length + ' 行'; } 
-    else { els.descPreview.innerHTML = '<span style="color:#4d5563;font-style:italic">暂无内容</span>'; els.descPreviewHint.textContent = '空'; }
+  function showEmpty() {
+    $('#empty').hidden = false; $('#viewer').hidden = true; $('#desc-editor').hidden = true;
+    currentId = null; renderTree();
   }
-  function scheduleDescPreview() {
-    if (descRafPending) return; descRafPending = true;
-    requestAnimationFrame(() => { descRafPending = false; renderDescPreviewNow(); });
-  }
+
   function openDescEditor() {
-    const t = current(); if (!t) return;
-    commitTitleIfEditing(); descEditingId = t.id; els.descEditName.textContent = t.name; els.descMdInput.value = t.desc || '';
-    showDescEditor(); renderDescPreviewNow(); els.descMdInput.focus();
+    const t = templates.find(x => x.id === currentId); if (!t) return;
+    descEditingId = t.id;
+    $('#desc-edit-name').textContent = t.name;
+    $('#desc-md-input').value = t.content;
+    $('#desc-preview').innerHTML = renderMarkdown(t.content);
+    $('#empty').hidden = true; $('#viewer').hidden = true; $('#desc-editor').hidden = false;
+    $('#desc-md-input').focus();
   }
+
   function saveDescEditor() {
-    if (!descEditingId) { cancelDescEditor(); return; }
-    const t = templates.find((x) => x.id === descEditingId);
-    if (t) { t.desc = els.descMdInput.value; t.updated = Date.now(); syncTemplateToCloud(t); }
-    descEditingId = null; persist(); viewTemplate(currentId); toast('简介已保存');
-  }
-  function cancelDescEditor() {
-    descEditingId = null;
-    if (currentId && templates.some((t) => t.id === currentId)) viewTemplate(currentId);
-    else { currentId = null; showEmpty(); renderTree(); }
+    if (!descEditingId) return;
+    const t = templates.find(x => x.id === descEditingId);
+    if (t) { t.content = $('#desc-md-input').value; t.updated = Date.now(); }
+    descEditingId = null; persist(); viewTemplate(currentId); toast('已保存');
   }
 
-  const PAIRS = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`' };
-  const CLOSERS = new Set([')', ']', '}', '"', "'", '`']);
-  let codeRafPending = false;
-  function renderLineNumbers() {
-    const val = els.editCode.value, n = val.split('\n').length;
-    let s = ''; for (let i = 1; i <= n; i++) s += i + '\n'; els.lineNumbers.textContent = s.slice(0, -1);
-  }
-  function renderCodeHighlight() {
-    const code = els.editCode.value;
-    if (code.length > MAX_HIGHLIGHT) els.hlCode.textContent = code + '\n';
-    else els.hlCode.innerHTML = highlightCpp(code) + '\n';
-    renderLineNumbers(); syncScroll();
-  }
-  function syncScroll() {
-    els.hlLayer.scrollTop = els.editCode.scrollTop; els.hlLayer.scrollLeft = els.editCode.scrollLeft; els.lineNumbers.scrollTop = els.editCode.scrollTop;
-  }
-  function scheduleCodeHighlight() {
-    if (codeRafPending) return; codeRafPending = true;
-    requestAnimationFrame(() => { codeRafPending = false; renderCodeHighlight(); });
-  }
-  function onCodeInput() { scheduleCodeHighlight(); }
-
-  function handleCodeEnter(ta) {
-    const start = ta.selectionStart, end = ta.selectionEnd, val = ta.value;
-    const lineStart = val.lastIndexOf('\n', start - 1) + 1;
-    const lineText = val.slice(lineStart, start); const indentMatch = lineText.match(/^[ \t]*/); const indent = indentMatch ? indentMatch[0] : '';
-    const before = val.slice(0, start).replace(/[ \t]+$/, ''); const lastChar = before.slice(-1); const nextChar = val[end];
-    let insertText = '\n' + indent, cursorOffset = insertText.length;
-    if (lastChar === '{') {
-      if (nextChar === '}') { insertText = '\n' + indent + INDENT_UNIT + '\n' + indent; cursorOffset = ('\n' + indent + INDENT_UNIT).length; } 
-      else { insertText = '\n' + indent + INDENT_UNIT; cursorOffset = insertText.length; }
-    } else if (lastChar === '(' || lastChar === '[') {
-      if ((lastChar === '(' && nextChar === ')') || (lastChar === '[' && nextChar === ']')) { insertText = '\n' + indent + INDENT_UNIT + '\n' + indent; cursorOffset = ('\n' + indent + INDENT_UNIT).length; } 
-      else { insertText = '\n' + indent + INDENT_UNIT; cursorOffset = insertText.length; }
-    }
-    ta.value = val.slice(0, start) + insertText + val.slice(end); ta.selectionStart = ta.selectionEnd = start + cursorOffset; onCodeInput();
-  }
-
-  function handleCodeKeyDown(e) {
-    const ta = e.target, start = ta.selectionStart, end = ta.selectionEnd, val = ta.value;
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (PAIRS[e.key]) {
-      e.preventDefault(); const selected = val.slice(start, end);
-      if (selected) { ta.value = val.slice(0, start) + e.key + selected + PAIRS[e.key] + val.slice(end); ta.selectionStart = start + 1; ta.selectionEnd = start + 1 + selected.length; } 
-      else { ta.value = val.slice(0, start) + e.key + PAIRS[e.key] + val.slice(end); ta.selectionStart = ta.selectionEnd = start + 1; }
-      onCodeInput(); return;
-    }
-    if (CLOSERS.has(e.key)) { if (start === end && val[start] === e.key) { e.preventDefault(); ta.selectionStart = ta.selectionEnd = start + 1; } return; }
-    if (e.key === 'Backspace' && start === end && start > 0) {
-      const b = val[start - 1], a = val[start];
-      if (PAIRS[b] && PAIRS[b] === a) { e.preventDefault(); ta.value = val.slice(0, start - 1) + val.slice(start + 1); ta.selectionStart = ta.selectionEnd = start - 1; onCodeInput(); return; }
-    }
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCodeEnter(ta); return; }
-    if (e.key === '}' && start === end) {
-      const lineStart = val.lastIndexOf('\n', start - 1) + 1, lineBefore = val.slice(lineStart, start);
-      if (/^[ \t]+$/.test(lineBefore)) {
-        e.preventDefault(); let indent = lineBefore;
-        if (indent.endsWith(INDENT_UNIT)) indent = indent.slice(0, -INDENT_UNIT.length);
-        else if (indent.endsWith('\t')) indent = indent.slice(0, -1);
-        else indent = indent.slice(0, -1);
-        if (val[start] === '}') { ta.value = val.slice(0, lineStart) + indent + val.slice(start + 1); ta.selectionStart = ta.selectionEnd = lineStart + indent.length; } 
-        else { ta.value = val.slice(0, lineStart) + indent + '}' + val.slice(start); ta.selectionStart = ta.selectionEnd = lineStart + indent.length + 1; }
-        onCodeInput(); return;
-      }
-    }
-  }
-
-  function openCodeEditor(id) {
-    const t = templates.find((x) => x.id === id); if (!t) return;
-    commitTitleIfEditing(); editingId = id; currentId = id; els.editName.textContent = t.name; els.editCode.value = t.code;
-    els.editCode.scrollTop = 0; els.editCode.scrollLeft = 0; showCodeEditor(); renderTree(); renderCodeHighlight(); els.editCode.focus();
-  }
-  function saveCodeEditor() {
-    if (!editingId) { cancelCodeEditor(); return; }
-    const t = templates.find((x) => x.id === editingId);
-    if (t) { t.code = els.editCode.value; t.updated = Date.now(); syncTemplateToCloud(t); }
-    editingId = null; persist(); viewTemplate(currentId); toast('代码已保存');
-  }
-  function cancelCodeEditor() {
-    editingId = null;
-    if (currentId && templates.some((t) => t.id === currentId)) viewTemplate(currentId);
-    else { currentId = null; showEmpty(); renderTree(); }
-  }
-
-  /* =========================================================
-   *  分组操作 & 事件
-   * ========================================================= */
   function openGroupModal(gid, parentId) {
     editingGroupId = gid === undefined ? null : gid; pendingParentId = parentId || null;
     if (editingGroupId) {
-      const g = groups.find((x) => x.id === editingGroupId); if (!g) return;
-      els.groupModalTitle.textContent = '编辑分组'; els.groupNameInput.value = g.name; els.groupKwInput.value = (g.keywords || []).join(', ');
+      const g = groups.find(x => x.id === editingGroupId); if (!g) return;
+      $('#group-modal-title').textContent = '编辑分组'; $('#group-name-input').value = g.name; $('#group-kw-input').value = (g.keywords || []).join(', ');
     } else {
-      const parent = pendingParentId ? groups.find((x) => x.id === pendingParentId) : null;
-      els.groupModalTitle.textContent = parent ? ('新建子分组 · ' + parent.name) : '新建分组'; els.groupNameInput.value = ''; els.groupKwInput.value = '';
+      const parent = pendingParentId ? groups.find(x => x.id === pendingParentId) : null;
+      $('#group-modal-title').textContent = parent ? ('新建子分组 · ' + parent.name) : '新建分组'; 
+      $('#group-name-input').value = ''; $('#group-kw-input').value = '';
     }
-    els.groupModal.hidden = false; els.groupNameInput.focus(); els.groupNameInput.select();
+    $('#group-modal').hidden = false; $('#group-name-input').focus(); $('#group-name-input').select();
   }
-  function closeGroupModal() { els.groupModal.hidden = true; editingGroupId = undefined; pendingParentId = null; }
+
+  function closeGroupModal() { $('#group-modal').hidden = true; editingGroupId = undefined; pendingParentId = null; }
+
   function saveGroupModal() {
-    const name = els.groupNameInput.value.trim() || '新分组';
-    const keywords = els.groupKwInput.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
-    if (editingGroupId) { const g = groups.find((x) => x.id === editingGroupId); if (g) { g.name = name; g.keywords = keywords; } } 
-    else { groups.push({ id: uid(), name: name, parentId: pendingParentId, collapsed: false, keywords: keywords }); }
+    const name = $('#group-name-input').value.trim() || '新分组';
+    const keywords = $('#group-kw-input').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+    if (editingGroupId) { 
+      const g = groups.find(x => x.id === editingGroupId); if (g) { g.name = name; g.keywords = keywords; } 
+    } else { 
+      groups.push({ id: uid(), name, parentId: pendingParentId, collapsed: false, keywords }); 
+    }
     persist(); closeGroupModal(); renderTree(); toast('分组已保存');
   }
+
   function deleteGroup(g) {
     const ids = collectGroupIds(g.id), affected = templates.filter((t) => t.manualGroupId && ids.has(t.manualGroupId));
-    const parts = ['确定删除分组「' + g.name + '」吗？'];
-    if (ids.size > 1) parts.push('将同时删除 ' + (ids.size - 1) + ' 个子分组');
-    if (affected.length) parts.push(affected.length + ' 个模板将移回未分组');
-    if (!confirm(parts.join('\n'))) return;
+    if (!confirm(`确定删除分组「${g.name}」吗？${affected.length ? affected.length + ' 个模板将移回未分组' : ''}`)) return;
     affected.forEach((t) => { t.manualGroupId = null; });
     groups = groups.filter((x) => !ids.has(x.id)); persist(); renderTree(); toast('分组已删除');
   }
-  async function exportGroup(g) {
-    const ids = collectGroupIds(g.id), list = templates.filter((t) => { const gid = getEffectiveGroup(t); return gid && ids.has(gid); });
-    if (!list.length) { toast('该分组下没有模板'); return; } await downloadTemplates(list);
-  }
-  function closeGroupPicker() { if (groupPicker) { groupPicker.remove(); groupPicker = null; } }
+
   function showGroupPicker(tid, anchor) {
-    closeGroupPicker(); const t = templates.find((x) => x.id === tid); if (!t) return;
+    if (groupPicker) groupPicker.remove();
+    const t = templates.find((x) => x.id === tid); if (!t) return;
     const picker = document.createElement('div'); picker.className = 'group-picker'; const effectiveGid = getEffectiveGroup(t);
     function addItem(gid, label, depth) {
       const item = document.createElement('div'); item.className = 'picker-item' + (gid === effectiveGid ? ' selected' : '');
       item.style.paddingLeft = (12 + depth * 14) + 'px'; item.textContent = (gid === null ? '○' : '📁') + ' ' + label;
-      item.addEventListener('click', () => { t.manualGroupId = gid; t.updated = Date.now(); persist(); closeGroupPicker(); renderTree(); toast('已移动到 ' + label); });
+      item.onclick = () => { t.manualGroupId = gid; t.updated = Date.now(); persist(); picker.remove(); renderTree(); toast('已移动到 ' + label); };
       picker.appendChild(item);
     }
     addItem(null, '未分组', 0);
-    function addGroup(g, depth) { addItem(g.id, g.name, depth); groups.filter((x) => x.parentId === g.id).forEach((cg) => addGroup(cg, depth + 1)); }
+    function addGroup(g, depth) { addItem(g.id, g.name, depth); groups.filter(x => x.parentId === g.id).forEach(cg => addGroup(cg, depth + 1)); }
     groups.filter((g) => g.parentId === null).forEach((g) => addGroup(g, 0));
-    if (!groups.length) { const hint = document.createElement('div'); hint.className = 'picker-empty'; hint.textContent = '还没有分组'; picker.appendChild(hint); }
     const rect = anchor.getBoundingClientRect();
     picker.style.left = Math.min(rect.left, window.innerWidth - 200) + 'px'; picker.style.top = Math.min(rect.bottom + 4, window.innerHeight - 260) + 'px';
     document.body.appendChild(picker); groupPicker = picker;
   }
 
-  function deleteTemplate(id) {
-    const t = templates.find((x) => x.id === id); if (!t) return;
-    if (!confirm('确定删除模板「' + t.name + '」吗？此操作不可撤销。')) return;
-    const idx = templates.findIndex((x) => x.id === id); templates.splice(idx, 1); persist();
-    if (editingId === id) editingId = null; if (descEditingId === id) descEditingId = null; exportSet.delete(id);
-    if (currentId === id) {
-      const next = templates[Math.min(idx, templates.length - 1)];
-      if (next) { currentId = next.id; viewTemplate(next.id); } else { currentId = null; showEmpty(); }
-    }
-    renderTree(); toast('已删除');
-  }
-
-  function uniqueName(base) {
-    let name = base, i = 2;
-    while (templates.some((t) => t.name === name)) { name = base + '(' + i + ')'; i++; }
-    return name;
-  }
+  /* =========================================================
+   *  导入导出
+   * ========================================================= */
   async function importFiles(files) {
     if (!files || !files.length) return;
-    let okCount = 0; const newIds = [];
+    let okCount = 0;
     for (const file of files) {
       try {
         const text = await file.text(); const base = file.name.replace(/\.[^./\\]+$/, '') || file.name;
-        const t = { id: uid(), name: uniqueName(base), desc: '', code: text, updated: Date.now() };
-        templates.unshift(t); newIds.push(t.id); okCount++;
-        syncTemplateToCloud(t);
-      } catch (e) { console.error('导入失败：', file.name, e); }
+        templates.unshift({ id: uid(), name: base, content: '```text\n' + text + '\n```', is_public: true, updated: Date.now() });
+        okCount++;
+      } catch (e) {}
     }
     if (!okCount) { toast('导入失败'); return; }
-    persist(); renderTree(); const firstId = newIds[newIds.length - 1];
-    if (firstId) viewTemplate(firstId); toast('已导入 ' + okCount + ' 个模板');
+    persist(); renderTree(); viewTemplate(templates[0].id); toast('已导入 ' + okCount + ' 个模板');
   }
 
-  function buildExportContent(t) {
-    const desc = (t.desc || '').trim(); let out = '';
-    if (desc) { const safe = desc.replace(/\*\//g, '* /'); out += '/*\n'; safe.split('\n').forEach((line) => { out += ' * ' + line + '\n'; }); out += ' */\n\n'; }
-    out += (t.code || ''); return out;
-  }
-  function buildMarkdown(t) {
-    const desc = (t.desc || '').trim(); const code = (t.code || '').replace(/\n+$/, '');
-    let out = desc ? desc + '\n\n' : ''; out += '```cpp\n' + code + '\n```\n'; return out;
-  }
   function download(filename, content) {
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = filename; a.style.display = 'none';
     document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
-  async function downloadTemplates(list) {
-    if (!list.length) { toast('没有可导出的模板'); return; }
-    if (list.length > 5) { if (!confirm('将依次下载 ' + list.length + ' 个 .cpp 文件。\n浏览器可能提示「允许多文件下载」，请选择允许。继续？')) return; }
-    const usedNames = new Set();
+
+  function renderExportList() {
+    const ul = $('#export-list'); ul.innerHTML = '';
+    $('#total-count').textContent = templates.length;
+    templates.forEach(t => {
+      const li = document.createElement('li'); li.dataset.id = t.id;
+      li.innerHTML = `<input type="checkbox" ${exportSet.has(t.id) ? 'checked' : ''}>
+        <span class="ex-name">${esc(t.name)}</span><span class="ex-meta">${t.content.length} 字符</span>`;
+      li.onclick = (e) => {
+        const cb = li.querySelector('input');
+        if (e.target !== cb) cb.checked = !cb.checked;
+        if (cb.checked) exportSet.add(t.id); else exportSet.delete(t.id);
+        $('#sel-count').textContent = exportSet.size;
+      };
+      ul.appendChild(li);
+    });
+    $('#sel-count').textContent = exportSet.size;
+  }
+
+  async function exportSelected() {
+    const list = templates.filter(t => exportSet.has(t.id));
+    if (!list.length) return toast('请至少选择一个模板');
+    $('#export-modal').hidden = true;
     for (let i = 0; i < list.length; i++) {
-      const t = list[i]; const base = sanitizeFilename(t.name);
-      let filename = base + '.cpp'; let k = 2;
-      while (usedNames.has(filename.toLowerCase())) { filename = base + '(' + k + ').cpp'; k++; }
-      usedNames.add(filename.toLowerCase()); download(filename, buildExportContent(t));
-      await new Promise((r) => setTimeout(r, 280));
+      download(sanitizeFilename(list[i].name) + '.md', list[i].content);
+      await new Promise(r => setTimeout(r, 280));
     }
     toast('已导出 ' + list.length + ' 个文件');
   }
 
-  function renderExportList() {
-    els.exportList.innerHTML = ''; els.totalCount.textContent = templates.length;
-    if (!templates.length) { const li = document.createElement('li'); li.className = 'export-empty'; li.textContent = '还没有模板可以导出'; els.exportList.appendChild(li); return; }
-    templates.forEach((t) => {
-      const li = document.createElement('li'); li.dataset.id = t.id;
-      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = exportSet.has(t.id);
-      const name = document.createElement('span'); name.className = 'ex-name'; name.textContent = t.name;
-      const meta = document.createElement('span'); meta.className = 'ex-meta'; meta.textContent = t.code ? (t.code.split('\n').length + ' 行') : '空';
-      li.appendChild(cb); li.appendChild(name); li.appendChild(meta);
-      li.addEventListener('click', (e) => {
-        if (e.target !== cb) cb.checked = !cb.checked;
-        if (cb.checked) exportSet.add(t.id); else exportSet.delete(t.id); syncExportToolbar();
-      });
-      els.exportList.appendChild(li);
+  /* =========================================================
+   *  绑定所有事件
+   * ========================================================= */
+  function bindEvents() {
+    const bind = (id, fn) => { const el = $('#'+id); if (el) el.onclick = fn; };
+
+    bind('btn-new', () => {
+      const t = { id: uid(), name: '新建模板', content: '', is_public: true, updated: Date.now() };
+      templates.unshift(t); persist(); currentId = t.id; renderTree(); viewTemplate(t.id); openDescEditor();
     });
-    syncExportToolbar();
-  }
-  function syncExportToolbar() {
-    const total = templates.length, sel = templates.filter((t) => exportSet.has(t.id)).length;
-    els.selCount.textContent = sel; els.chkAll.checked = (total > 0 && sel === total); els.chkAll.indeterminate = (sel > 0 && sel < total);
-  }
-  function openExportModal() {
-    if (!templates.length) { toast('还没有模板可以导出'); return; }
-    exportSet = new Set(templates.map((t) => t.id)); renderExportList(); els.exportModal.hidden = false;
-  }
-  function closeExportModal() { els.exportModal.hidden = true; }
-  async function exportSelected() {
-    const selected = templates.filter((t) => exportSet.has(t.id));
-    if (!selected.length) { toast('请至少选择一个模板'); return; }
-    closeExportModal(); await downloadTemplates(selected);
-  }
+    bind('btn-import', () => $('#file-input').click());
+    bind('btn-export', () => { exportSet = new Set(templates.map(t => t.id)); renderExportList(); $('#export-modal').hidden = false; });
+    bind('btn-group', () => openGroupModal(null, null));
+    bind('btn-explore', openExploreModal);
+    bind('btn-chat', () => { 
+      currentChatTarget = 'public'; 
+      $('#chat-title').textContent = '公共聊天室'; 
+      $('#chat-search-user').value = '';
+      $('#chat-modal').hidden = false; 
+      pollChat(); 
+    });
+    bind('btn-open-share', () => { $('#open-modal').hidden = false; });
+    bind('btn-sync', () => { $('#sync-info').textContent = `本地: ${templates.length} 个模板`; $('#sync-modal').hidden = false; });
+    
+    bind('btn-toggle-public', () => {
+      const t = templates.find(x => x.id === currentId); if (!t) return;
+      t.is_public = !t.is_public;
+      persist();
+      viewTemplate(t.id);
+      toast(t.is_public ? '已设为公开' : '已设为私密');
+    });
 
-  /* =========================================================
-   *  事件绑定
-   * ========================================================= */
-  $('#btn-login').addEventListener('click', openAuthModal);
-  $('#btn-logout').addEventListener('click', doLogout);
-  $('#auth-close').addEventListener('click', () => { $('#auth-modal').hidden = true; });
-  $('#auth-modal').addEventListener('click', (e) => { if (e.target === $('#auth-modal')) $('#auth-modal').hidden = true; });
-  $('#auth-register').addEventListener('click', () => doAuth('register'));
-  $('#auth-login-btn').addEventListener('click', () => doAuth('login'));
-  $('#auth-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doAuth('login'); } });
+    $('#file-input').onchange = () => { const files = Array.from($('#file-input').files || []); $('#file-input').value = ''; if (files.length) importFiles(files); };
+    $('#search').oninput = renderTree;
 
-  $('#btn-share').addEventListener('click', shareCurrent);
-  $('#share-close').addEventListener('click', () => { $('#share-modal').hidden = true; });
-  $('#share-modal').addEventListener('click', (e) => { if (e.target === $('#share-modal')) $('#share-modal').hidden = true; });
-  $('#share-copy-id').addEventListener('click', () => copyText($('#share-id').value, '编号已复制'));
-  $('#share-copy-url').addEventListener('click', () => copyText($('#share-url').value, '链接已复制'));
-
-  $('#btn-open-share').addEventListener('click', () => { if (!CLOUD) { toast('云端未配置'); return; } $('#open-modal').hidden = false; setTimeout(() => $('#open-id').focus(), 30); });
-  $('#open-close').addEventListener('click', () => { $('#open-modal').hidden = true; });
-  $('#open-cancel').addEventListener('click', () => { $('#open-modal').hidden = true; });
-  $('#open-modal').addEventListener('click', (e) => { if (e.target === $('#open-modal')) $('#open-modal').hidden = true; });
-  $('#open-confirm').addEventListener('click', async () => { const id = $('#open-id').value.trim(); if (!id) { toast('请输入编号'); return; } $('#open-modal').hidden = true; await openSharedById(id); });
-  $('#open-id').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#open-confirm').click(); } });
-
-  $('#btn-sync').addEventListener('click', openSyncModal);
-  $('#sync-close').addEventListener('click', () => { $('#sync-modal').hidden = true; });
-  $('#sync-modal').addEventListener('click', (e) => { if (e.target === $('#sync-modal')) $('#sync-modal').hidden = true; });
-  $('#sync-push').addEventListener('click', async () => { $('#sync-modal').hidden = true; await pushCloud(false); });
-  $('#sync-pull').addEventListener('click', async () => { if (!confirm('从云端下载会覆盖当前本地数据，确定继续？')) return; $('#sync-modal').hidden = true; await pullCloud(false); });
-
-  document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    ['#auth-modal', '#share-modal', '#open-modal', '#sync-modal'].forEach((sel) => { const el = $(sel); if (el && !el.hidden) el.hidden = true; });
-  });
-
-  $('#btn-new').addEventListener('click', () => {
-    const t = { id: uid(), name: uniqueName('新建模板'), desc: '', code: '', updated: Date.now() };
-    templates.unshift(t); persist(); currentId = t.id; renderTree(); viewTemplate(t.id); enterTitleEdit();
-  });
-
-  $('#btn-import').addEventListener('click', () => els.fileInput.click());
-  $('#btn-export').addEventListener('click', openExportModal);
-  $('#btn-group').addEventListener('click', () => createGroup(null));
-  function createGroup(parentId) { openGroupModal(null, parentId || null); }
-
-  els.fileInput.addEventListener('change', () => { const files = Array.from(els.fileInput.files || []); els.fileInput.value = ''; if (files.length) importFiles(files); });
-  els.search.addEventListener('input', renderTree);
-
-  $('#btn-edit').addEventListener('click', () => { if (currentId) openCodeEditor(currentId); });
-  $('#btn-copy').addEventListener('click', () => { const t = current(); if (t) copyText(t.code, '代码已复制'); });
-  $('#btn-copy-md').addEventListener('click', () => { const t = current(); if (t) copyText(buildMarkdown(t), 'Markdown已复制'); });
-  $('#btn-del').addEventListener('click', () => { if (currentId) deleteTemplate(currentId); });
-
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.copy-code'); if (!btn) return;
-    const code = decodeURIComponent(btn.dataset.code || ''); copyText(code, '代码已复制');
-    const old = btn.textContent; btn.textContent = '已复制 ✓'; setTimeout(() => { btn.textContent = old; }, 1200);
-  });
-
-  els.chkAll.addEventListener('change', () => {
-    if (els.chkAll.checked) exportSet = new Set(templates.map((t) => t.id)); else exportSet.clear();
-    els.exportList.querySelectorAll('li[data-id]').forEach((li) => { const cb = li.querySelector('input[type=checkbox]'); if (cb) cb.checked = exportSet.has(li.dataset.id); });
-    syncExportToolbar();
-  });
-  $('#modal-close').addEventListener('click', closeExportModal);
-  $('#export-cancel').addEventListener('click', closeExportModal);
-  $('#export-confirm').addEventListener('click', exportSelected);
-  els.exportModal.addEventListener('click', (e) => { if (e.target === els.exportModal) closeExportModal(); });
-
-  $('#btn-settings').addEventListener('click', (e) => { e.stopPropagation(); els.settingsPanel.hidden = !els.settingsPanel.hidden; });
-  document.addEventListener('click', (e) => { if (els.settingsPanel.hidden) return; if (els.settingsPanel.contains(e.target) || e.target.closest('#btn-settings')) return; els.settingsPanel.hidden = true; });
-  $('#set-size').addEventListener('input', () => { settings.size = Number($('#set-size').value) || 14; $('#set-size-val').textContent = settings.size + 'px'; saveSettings(); });
-  $('#set-font').addEventListener('change', () => { settings.font = $('#set-font').value; saveSettings(); });
-
-  document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-      e.preventDefault();
-      if (!els.editor.hidden) saveCodeEditor(); else if (!els.descEditor.hidden) saveDescEditor(); else if (!els.groupModal.hidden) saveGroupModal(); return;
-    }
-    if (e.key === 'Escape') {
-      if (!els.exportModal.hidden) { closeExportModal(); return; }
-      if (!els.groupModal.hidden) { closeGroupModal(); return; }
-      if (!els.settingsPanel.hidden) { els.settingsPanel.hidden = true; return; }
-    }
-  });
-
-  els.viewTitleInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); els.viewTitleInput.blur(); } 
-    else if (e.key === 'Escape') { e.preventDefault(); titleCancelling = true; els.viewTitleInput.blur(); }
-  });
-  els.viewTitleInput.addEventListener('blur', () => { if (titleCancelling) { titleCancelling = false; exitTitleEdit(false); } else { exitTitleEdit(true); } });
-  
-  els.descMdInput.addEventListener('input', scheduleDescPreview);
-  els.descMdInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); cancelDescEditor(); } });
-  bindTabIndent(els.descMdInput);
-  $('#btn-desc-save').addEventListener('click', saveDescEditor);
-  $('#btn-desc-cancel').addEventListener('click', cancelDescEditor);
-  $('#btn-desc').addEventListener('click', openDescEditor);
-
-  els.editCode.addEventListener('input', onCodeInput);
-  els.editCode.addEventListener('keydown', handleCodeKeyDown);
-  els.editCode.addEventListener('scroll', syncScroll);
-  els.editCode.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); cancelCodeEditor(); } });
-  $('#btn-save').addEventListener('click', saveCodeEditor);
-  $('#btn-cancel').addEventListener('click', cancelCodeEditor);
-
-  $('#group-modal-close').addEventListener('click', closeGroupModal);
-  $('#group-modal-cancel').addEventListener('click', closeGroupModal);
-  $('#group-modal-save').addEventListener('click', saveGroupModal);
-  els.groupModal.addEventListener('click', (e) => { if (e.target === els.groupModal) closeGroupModal(); });
-  els.groupNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); els.groupKwInput.focus(); } else if (e.key === 'Escape') { e.preventDefault(); closeGroupModal(); } });
-  els.groupKwInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveGroupModal(); } else if (e.key === 'Escape') { e.preventDefault(); closeGroupModal(); } });
-
-  document.addEventListener('click', (e) => { if (groupPicker && !groupPicker.contains(e.target)) closeGroupPicker(); });
-
-  els.list.addEventListener('click', (e) => {
-    const groupNode = e.target.closest('.group-node'), templateNode = e.target.closest('.template-node'), op = e.target.closest('.node-op');
-    if (op) {
-      e.stopPropagation();
-      if (groupNode) {
-        const g = groups.find((x) => x.id === groupNode.dataset.gid); if (!g) return;
-        const gop = op.dataset.gop;
-        if (gop === 'add-sub') createGroup(g.id);
-        else if (gop === 'edit') openGroupModal(g.id);
-        else if (gop === 'export') exportGroup(g);
-        else if (gop === 'delete') deleteGroup(g);
-      } else if (templateNode) {
-        const t = templates.find((x) => x.id === templateNode.dataset.tid); if (!t) return;
-        const top = op.dataset.top;
-        if (top === 'rename') { viewTemplate(t.id); enterTitleEdit(); }
-        else if (top === 'copy') copyText(t.code, '代码已复制');
-        else if (top === 'move') showGroupPicker(t.id, op);
-        else if (top === 'delete') deleteTemplate(t.id);
+    $('#list').onclick = (e) => {
+      const groupNode = e.target.closest('.group-node'), templateNode = e.target.closest('.template-node'), op = e.target.closest('.node-op');
+      if (op) {
+        e.stopPropagation();
+        if (groupNode) {
+          const g = groups.find(x => x.id === groupNode.dataset.gid); if (!g) return;
+          const gop = op.dataset.gop;
+          if (gop === 'add-sub') openGroupModal(null, g.id);
+          else if (gop === 'edit') openGroupModal(g.id);
+          else if (gop === 'export') { exportSet = new Set(templates.filter(t => getEffectiveGroup(t) === g.id).map(t => t.id)); renderExportList(); $('#export-modal').hidden = false; }
+          else if (gop === 'delete') deleteGroup(g);
+        } else if (templateNode) {
+          const t = templates.find(x => x.id === templateNode.dataset.tid); if (!t) return;
+          const top = op.dataset.top;
+          if (top === 'rename') { const name = prompt('新名称：', t.name); if (name && name.trim()) { t.name = name.trim(); persist(); viewTemplate(t.id); } }
+          else if (top === 'move') showGroupPicker(t.id, op);
+          else if (top === 'delete') { if (confirm('确定删除？')) { templates = templates.filter(x => x.id !== t.id); if (currentId === t.id) showEmpty(); persist(); renderTree(); } }
+        }
+        return;
       }
-      return;
-    }
-    if (groupNode) {
-      if (groupNode.dataset.virtual === 'ungrouped') return;
-      const g = groups.find((x) => x.id === groupNode.dataset.gid);
-      if (g) { g.collapsed = !g.collapsed; persist(); renderTree(); }
-      return;
-    }
-    if (templateNode) viewTemplate(templateNode.dataset.tid);
-  });
+      if (groupNode) {
+        if (groupNode.dataset.virtual === 'ungrouped') return;
+        const g = groups.find(x => x.id === groupNode.dataset.gid);
+        if (g) { g.collapsed = !g.collapsed; persist(); renderTree(); }
+        return;
+      }
+      if (templateNode) viewTemplate(templateNode.dataset.tid);
+    };
 
-  /* =========================================================
-   *  启动
-   * ========================================================= */
-  loadSettings(); load(); renderTree();
+    bind('btn-desc', openDescEditor);
+    bind('btn-desc-save', saveDescEditor);
+    bind('btn-desc-cancel', () => { descEditingId = null; viewTemplate(currentId); });
+    $('#desc-md-input').oninput = (e) => { $('#desc-preview').innerHTML = renderMarkdown(e.target.value); };
+    bind('btn-del', () => { if (currentId && confirm('确定删除？')) { templates = templates.filter(x => x.id !== currentId); showEmpty(); persist(); renderTree(); } });
+    bind('btn-copy-md', () => { const t = templates.find(x => x.id === currentId); if (t) { navigator.clipboard.writeText(t.content); toast('已复制'); } });
 
-  (async function initCloud() {
-    if (!CLOUD) { setUser(null); return; }
-    try {
-      const { data } = await sb.auth.getSession();
-      setUser(data.session ? data.session.user : null);
-      sb.auth.onAuthStateChange((_event, session) => { setUser(session ? session.user : null); });
-    } catch (e) { setUser(null); }
-  })();
+    bind('btn-login', () => { $('#auth-modal').hidden = false; });
+    bind('profile-close', () => { $('#profile-modal').hidden = true; });
+    bind('btn-save-username', saveUsername);
+    bind('btn-save-pw', savePassword);
+    bind('btn-admin-panel', () => { $('#profile-modal').hidden = true; openAdminPanel(); });
+    bind('admin-close', () => { $('#admin-modal').hidden = true; });
+    
+    bind('explore-close', () => { $('#explore-modal').hidden = true; });
+    bind('explore-search-btn', () => { exploreQuery = $('#explore-search').value.trim(); exploreType = $('#explore-type').value; explorePage = 0; loadExplorePage(); });
+    bind('explore-prev', () => { if (explorePage > 0) { explorePage--; loadExplorePage(); } });
+    bind('explore-next', () => { explorePage++; loadExplorePage(); });
 
-  if (templates.length) { currentId = templates[0].id; viewTemplate(currentId); } else { showEmpty(); }
+    bind('chat-close', () => { $('#chat-modal').hidden = true; });
+    bind('chat-send', sendChatMessage);
+    $('#chat-input').onkeydown = (e) => { if (e.key === 'Enter') sendChatMessage(); };
+    
+    $('#chat-search-user').oninput = () => {
+      clearTimeout(window._chatSearchT);
+      window._chatSearchT = setTimeout(searchChatUser, 400);
+    };
+    $('#chat-contacts').onclick = (e) => {
+      const li = e.target.closest('.admin-user-item'); if (!li) return;
+      const uid = li.dataset.uid;
+      currentChatTarget = uid;
+      const name = uid === 'public' ? '公共聊天室' : (li.dataset.username || '私聊');
+      $('#chat-title').textContent = name === '公共聊天室' ? name : ('与 ' + name + ' 私聊');
+      $('#chat-list').innerHTML = ''; 
+      $('#chat-search-user').value = '';
+      loadChatMessages();
+      renderChatContacts();
+    };
+    $('#chat-list').onclick = (e) => {
+      if (e.target.classList.contains('revoke-btn')) {
+        revokeMessage(e.target.dataset.id);
+      }
+    };
+
+    bind('modal-close', () => { $('#export-modal').hidden = true; });
+    bind('export-cancel', () => { $('#export-modal').hidden = true; });
+    bind('export-confirm', exportSelected);
+    bind('group-modal-close', closeGroupModal);
+    bind('group-modal-cancel', closeGroupModal);
+    bind('group-modal-save', saveGroupModal);
+    bind('sync-close', () => { $('#sync-modal').hidden = true; });
+    bind('sync-push', async () => { $('#sync-modal').hidden = true; await pushCloud(false); });
+    bind('sync-pull', async () => { $('#sync-modal').hidden = true; if (confirm('覆盖本地数据？')) await pullCloud(false); });
+    
+    bind('share-close', () => { $('#share-modal').hidden = true; });
+    bind('share-copy-id', () => { navigator.clipboard.writeText($('#share-id').value); toast('编号已复制'); });
+    bind('share-copy-url', () => { navigator.clipboard.writeText($('#share-url').value); toast('链接已复制'); });
+    bind('open-close', () => { $('#open-modal').hidden = true; });
+    bind('open-cancel', () => { $('#open-modal').hidden = true; });
+    bind('open-confirm', async () => {
+      const id = $('#open-id').value.trim(); if (!id) return;
+      try {
+        const { data } = await sb.from('snippets').select('*').eq('short_id', id).maybeSingle();
+        if (data) {
+          const t = { id: uid(), name: data.name, content: data.desc_text, short_id: data.short_id, author_name: data.author_name, is_public: data.is_public, updated: Date.now() };
+          templates.unshift(t); persist(); renderTree(); viewTemplate(t.id); $('#open-modal').hidden = true; toast('导入成功');
+        } else toast('未找到该编号');
+      } catch(e) { toast('网络异常'); }
+    });
+
+    bind('auth-close', () => { $('#auth-modal').hidden = true; });
+    bind('auth-register', async () => {
+      const u = $('#auth-user').value.trim(), p = $('#auth-pass').value;
+      if (!u || p.length < 6) return toast('格式错误');
+      try { 
+        await sb.auth.signUp({ email: u + '@' + EMAIL_DOMAIN, password: p }); 
+        await sb.auth.signInWithPassword({ email: u + '@' + EMAIL_DOMAIN, password: p }); 
+        $('#auth-modal').hidden = true; toast('注册成功'); 
+      } catch (e) { toast(e.message); }
+    });
+    bind('auth-login-btn', async () => {
+      const u = $('#auth-user').value.trim(), p = $('#auth-pass').value;
+      try { 
+        await sb.auth.signInWithPassword({ email: u + '@' + EMAIL_DOMAIN, password: p }); 
+        $('#auth-modal').hidden = true; toast('登录成功'); 
+      } catch (e) { toast('账号或密码错误'); }
+    });
+    bind('btn-logout', async () => {
+      if (!confirm('退出并清空本地缓存？')) return;
+      templates = []; localStorage.removeItem(KEY); setUser(null); showEmpty(); sb.auth.signOut(); toast('已退出');
+    });
+
+    bind('btn-settings', (e) => { e.stopPropagation(); $('#settings-panel').hidden = !$('#settings-panel').hidden; });
+    document.addEventListener('click', (e) => { if (!$('#settings-panel').hidden && !$('#settings-panel').contains(e.target) && !e.target.closest('#btn-settings')) $('#settings-panel').hidden = true; });
+    $('#set-size').oninput = () => { settings.size = Number($('#set-size').value) || 14; $('#set-size-val').textContent = settings.size + 'px'; saveSettings(); };
+    $('#set-font').onchange = () => { settings.font = $('#set-font').value; saveSettings(); };
+    
+    document.addEventListener('click', (e) => {
+      if (groupPicker && !groupPicker.contains(e.target)) groupPicker.remove();
+      const btn = e.target.closest('.copy-code');
+      if (btn) { const code = decodeURIComponent(btn.dataset.code || ''); navigator.clipboard.writeText(code); toast('已复制'); }
+    });
+  }
+
+  function applySettings() {
+    const root = document.documentElement;
+    root.style.setProperty('--ui-font', FONTS[settings.font] || FONTS.system);
+    root.style.setProperty('--ui-size', settings.size + 'px');
+    root.style.setProperty('--md-size', (settings.size * 0.96).toFixed(2) + 'px');
+    root.style.setProperty('--code-size', (settings.size * 0.93).toFixed(2) + 'px');
+  }
+  function loadSettings() {
+    try { const s = JSON.parse(localStorage.getItem(SETTINGS_KEY)); if (s) { settings.font = s.font || 'system'; settings.size = s.size || 14; } } catch(e){}
+    applySettings(); $('#set-size').value = settings.size; $('#set-size-val').textContent = settings.size + 'px'; $('#set-font').value = settings.font;
+  }
+  function saveSettings() {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); applySettings();
+  }
+
+  // 启动
+  loadSettings(); load(); bindEvents(); renderTree();
+  if (CLOUD) {
+    sb.auth.getSession().then(({ data }) => { setUser(data.session?.user || null); });
+    sb.auth.onAuthStateChange((_e, s) => { setUser(s?.user || null); });
+  }
 
   const m = location.hash.match(/^#s=([0-9a-fA-F]{6,64})$/);
-  if (m && CLOUD) setTimeout(() => openSharedById(m[1]), 300);
-
-  window.addEventListener('resize', () => { if (!els.editor.hidden) renderCodeHighlight(); });
+  if (m && CLOUD) {
+    setTimeout(async () => {
+      toast('获取分享中...');
+      const { data } = await sb.from('snippets').select('*').eq('short_id', m[1]).maybeSingle();
+      if (data) {
+        const t = { id: uid(), name: data.name, content: data.desc_text, short_id: data.short_id, author_name: data.author_name, is_public: data.is_public, updated: Date.now() };
+        templates.unshift(t); persist(); renderTree(); viewTemplate(t.id);
+      }
+    }, 500);
+  }
 })();
